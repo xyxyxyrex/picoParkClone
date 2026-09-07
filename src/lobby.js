@@ -9,7 +9,7 @@
     if(classicHost) classicHost.style.display=mode==="versus"?'none':'';
     if(classicJoin) classicJoin.style.display=mode==="versus"?'none':'';
     const modeLabel=document.getElementById('modeLabel');
-    if(modeLabel) modeLabel.textContent=mode==="versus"?'VERSUS':'CLASSIC CO-OP';
+    if(modeLabel) modeLabel.textContent=mode==="versus"?'VERSUS · FIRST TO CLEAR 5':'CLASSIC CO-OP';
   };
 
   window.showLobbyMessage=function(message,isError=false){
@@ -17,6 +17,17 @@
       el.textContent=message||'';
       el.className='pixel-status'+(isError?' error':'');
     });
+  };
+
+  window.showMatchWinner=function(label){
+    let overlay=document.getElementById('matchWinnerOverlay');
+    if(!overlay){
+      overlay=document.createElement('div');overlay.id='matchWinnerOverlay';overlay.className='game-menu-wrap';overlay.style.zIndex='80';
+      overlay.innerHTML='<div class="pixel-card" style="text-align:center;max-width:620px"><div class="pixel-kicker">Campaign Complete</div><h1 id="matchWinnerText" style="font-size:46px;margin:12px 0"></h1><p class="pixel-status">First team to clear all five stages wins.</p><a class="pixel-btn green" href="./index.html">Back to Lobby</a></div>';
+      document.body.appendChild(overlay);
+    }
+    document.getElementById('matchWinnerText').textContent=`${label} WINS!`;
+    overlay.style.display='grid';
   };
 
   window.renderLobbyState=function(state){
@@ -36,19 +47,32 @@
     });
 
     const counts=state.counts||{team1:0,team2:0};
-    allId('team1Count').forEach(el=>el.textContent=counts.team1||0);
-    allId('team2Count').forEach(el=>el.textContent=counts.team2||0);
-    if(state.scores){
-      const s1=document.getElementById('score1');
-      const s2=document.getElementById('score2');
-      if(s1) s1.textContent=state.scores.team1||0;
-      if(s2) s2.textContent=state.scores.team2||0;
-    }
+    const cap=state.maxTeamPlayers||6;
+    allId('team1Count').forEach(el=>el.textContent=`${counts.team1||0}/${cap}`);
+    allId('team2Count').forEach(el=>el.textContent=`${counts.team2||0}/${cap}`);
+
+    const progress=state.progress||{team1:1,team2:1};
+    const finished=state.finished||{};
+    const p1=document.getElementById('score1'),p2=document.getElementById('score2');
+    if(p1) p1.textContent=finished.team1?'5/5':`${Math.min(5,progress.team1||1)}/5`;
+    if(p2) p2.textContent=finished.team2?'5/5':`${Math.min(5,progress.team2||1)}/5`;
+    allId('team1Progress').forEach(el=>el.textContent=finished.team1?'FINISHED':`LEVEL ${progress.team1||1}`);
+    allId('team2Progress').forEach(el=>el.textContent=finished.team2?'FINISHED':`LEVEL ${progress.team2||1}`);
+
+    document.querySelectorAll('[data-role]').forEach(btn=>{
+      const role=btn.dataset.role;
+      const count=role==='team1'?counts.team1:role==='team2'?counts.team2:0;
+      btn.disabled=!!state.matchStarted || ((role==='team1'||role==='team2')&&count>=cap);
+    });
+    if(state.matchWinner) showMatchWinner(state.matchWinner==='team1'?'TEAM 1':'TEAM 2');
   };
 
   function requestRole(role){
     if(window.clientConnection){ clientConnection.requestRole(role); return; }
-    showLobbyMessage('The host occupies Team 1 in Versus mode so the first guest must join Team 2 or observe.');
+    if(window.hostConnection){
+      const ok=hostConnection.requestHostRole(role);
+      showLobbyMessage(ok?(role==='observer'?'Host is observing.':'Host joined '+(role==='team1'?'Team 1.':'Team 2.')):'That host role would break team balance or the match already started.',!ok);
+    }
   }
 
   document.addEventListener('DOMContentLoaded',()=>{
@@ -68,24 +92,19 @@
     Player.prototype.__observerPatch=true;
     const originalRestart=Player.prototype.restart;
     Player.prototype.setObserver=function(enabled){
-      this.observer=!!enabled;
+      enabled=!!enabled;
+      if(this.observer===enabled) return;
+      this.observer=enabled;
       if(this.observer){
-        this.body.isStatic=true;
-        this.body.collisionFilter.mask=0;
-        Matter.Body.setPosition(this.body,v(-10000,-10000));
-        Matter.Body.setVelocity(this.body,v(0,0));
+        this.body.isStatic=true;this.body.collisionFilter.mask=0;
+        Matter.Body.setPosition(this.body,v(-10000,-10000));Matter.Body.setVelocity(this.body,v(0,0));
       } else {
-        this.body.isStatic=false;
-        this.body.collisionFilter={category:1,group:0,mask:4294967295};
+        this.body.isStatic=false;this.body.collisionFilter={category:1,group:0,mask:4294967295};
         originalRestart.call(this,0);
       }
     };
     Player.prototype.restart=function(i=0){
-      if(this.observer){
-        Matter.Body.setPosition(this.body,v(-10000,-10000));
-        Matter.Body.setVelocity(this.body,v(0,0));
-        return;
-      }
+      if(this.observer){Matter.Body.setPosition(this.body,v(-10000,-10000));Matter.Body.setVelocity(this.body,v(0,0));return;}
       return originalRestart.call(this,i);
     };
   }
