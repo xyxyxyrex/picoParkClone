@@ -69,16 +69,31 @@
           <span class="hud-box" id="zoomLabel">100%</span>
           <button id="zoomIn" class="pixel-btn small secondary">+</button>
         </div>
-        <div class="canvas-frame" id="canvasFrame">
-          <canvas id="myCanvas"></canvas>
-        </div>
-        <div class="editor-statusbar">
-          <span id="selectedTile">Selected: Wall</span>
-          <span id="cursorPos">X: -- / Y: --</span>
-        </div>
+        <div class="canvas-frame" id="canvasFrame"><canvas id="myCanvas"></canvas></div>
+        <div class="editor-statusbar"><span id="selectedTile">Selected: Wall</span><span id="cursorPos">X: -- / Y: --</span></div>
       </section>
 
       <aside class="editor-panel pixel-stack">
+        <section>
+          <h2>Campaign Templates</h2>
+          <label class="pixel-label">Template
+            <select id="campaignTemplate" class="pixel-select">
+              <option value="1">Level 1 · Stack School</option>
+              <option value="2">Level 2 · Tether Trouble</option>
+              <option value="3">Level 3 · Shield Relay</option>
+              <option value="4">Level 4 · Hold The Line</option>
+              <option value="5">Level 5 · Final Exam</option>
+            </select>
+          </label>
+          <label class="pixel-label" style="margin-top:8px">Preview player count
+            <select id="templatePlayers" class="pixel-select">
+              <option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
+            </select>
+          </label>
+          <button id="loadCampaignTemplate" class="pixel-btn small green" style="margin-top:9px">Load Dynamic Template</button>
+          <p class="pixel-status" id="templateHint">Templates regenerate geometry for 1–6 players. After loading, every tile remains editable.</p>
+        </section>
+
         <section>
           <h2>Level Size</h2>
           <div class="inspector-grid">
@@ -94,15 +109,12 @@
             <label class="pixel-label">Width<input id="blockX" class="pixel-number" value="1" min="1" max="8" type="number"></label>
             <label class="pixel-label">Height<input id="blockY" class="pixel-number" value="1" min="1" max="8" type="number"></label>
           </div>
-          <label class="pixel-label" style="margin-top:8px">Required players<input id="requiredPlayers" class="pixel-input" value="0" min="0" max="16" type="number"></label>
+          <label class="pixel-label" style="margin-top:8px">Required players<input id="requiredPlayers" class="pixel-input" value="0" min="0" max="6" type="number"></label>
         </section>
 
         <section>
           <h2>Laser Inspector</h2>
-          <div class="pixel-row">
-            <button id="rotateLaser" class="pixel-btn small red">Rotate</button>
-            <span class="hud-box">Direction: <b id="laserRotation">1</b></span>
-          </div>
+          <div class="pixel-row"><button id="rotateLaser" class="pixel-btn small red">Rotate</button><span class="hud-box">Direction: <b id="laserRotation">1</b></span></div>
         </section>
 
         <section>
@@ -117,20 +129,14 @@
 
         <section>
           <h2>Project Data</h2>
-          <div class="pixel-row">
-            <button id="exportProject" class="pixel-btn small secondary">Export JSON</button>
-            <button id="importProject" class="pixel-btn small secondary">Import JSON</button>
-          </div>
+          <div class="pixel-row"><button id="exportProject" class="pixel-btn small secondary">Export JSON</button><button id="importProject" class="pixel-btn small secondary">Import JSON</button></div>
           <input type="file" id="importFile" accept="application/json,.json" hidden>
         </section>
 
         <section>
           <h2>Game Data</h2>
           <textarea id="convert" class="pixel-textarea editor-output" readonly placeholder="Generated level data appears here..."></textarea>
-          <div class="pixel-row" style="margin-top:8px">
-            <button id="generateData" class="pixel-btn small cyan">Generate</button>
-            <button id="copyData" class="pixel-btn small secondary">Copy</button>
-          </div>
+          <div class="pixel-row" style="margin-top:8px"><button id="generateData" class="pixel-btn small cyan">Generate</button><button id="copyData" class="pixel-btn small secondary">Copy</button></div>
         </section>
       </aside>
     </div>
@@ -138,6 +144,7 @@
 
   <div class="toast" id="editorToast"></div>
   <script src="./libs/common.js"></script>
+  <script src="./src/campaignTemplates.js"></script>
   <script src="./src/editor.js"></script>
 </body>
 </html>
