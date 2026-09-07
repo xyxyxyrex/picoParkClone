@@ -20,9 +20,15 @@ function versusCounts(game){
   };
 }
 
+function stableNumericId(text){
+  let h=2166136261;
+  for(let i=0;i<String(text).length;i++){h^=String(text).charCodeAt(i);h=Math.imul(h,16777619);}
+  return Math.abs(h>>>0)+100000;
+}
+
 function instantiateBlueprint(blueprint,nextLevel=null){
   const doorMap={};
-  const doors=(blueprint.doors||[]).map(desc=>{
+  const doors=(blueprint.doors||[]).map((desc,index)=>{
     const door=new Door(v(desc.pos.x,desc.pos.y),{
       nextLevel:desc.checkpoint===false?null:nextLevel,
       acceptsKey:desc.acceptsKey!==false,
@@ -34,8 +40,9 @@ function instantiateBlueprint(blueprint,nextLevel=null){
       campaignStage:desc.campaignStage||null,
       finish:!!desc.finish
     });
-    door.templateId=desc.id||null;
-    if(door.templateId) doorMap[door.templateId]=door;
+    door.templateId=desc.id||`${blueprint.id||blueprint.name||'level'}-door-${index}`;
+    door.id=stableNumericId(door.templateId);
+    doorMap[door.templateId]=door;
     return door;
   });
 
@@ -47,10 +54,12 @@ function instantiateBlueprint(blueprint,nextLevel=null){
       const needed=desc.mode==='all'?Math.max(1,desc.required||1):1;
       gate.setOpen(gate._pressedSwitches.size>=needed);
     };
-    return new Button(v(desc.pos.x,desc.pos.y),{
+    const button=new Button(v(desc.pos.x,desc.pos.y),{
       onPress:()=>{if(gate){gate._pressedSwitches.add(desc.id);refresh();}},
       onUnpress:()=>{if(gate){gate._pressedSwitches.delete(desc.id);refresh();}}
     });
+    button.team=desc.team||null;button.stage=desc.stage||null;button.templateId=desc.id||null;
+    return button;
   });
 
   return {
