@@ -5,60 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="./assets/imgs/favicon.png">
   <link rel="stylesheet" href="./ui.css">
-  <title>Microscopic Natural Area for Public Recreational Activities</title>
+  <title>Tiny Park</title>
 </head>
 <body class="arcade-ui">
   <main class="pixel-shell">
     <header class="pixel-header">
       <div class="pixel-kicker">WebRTC co-op chaos</div>
       <h1 class="pixel-title">Tiny Park</h1>
-      <p class="pixel-subtitle">Create a room, share the code, and survive compact co-op stages. Classic mode keeps everyone together. Versus mode splits the room into two balanced teams while observers can spectate without taking a player slot.</p>
+      <p class="pixel-subtitle">A browser co-op puzzle platformer with player-count-aware stages. Classic mode keeps everyone together. Versus mode supports two balanced teams of up to 6 players each, while observers spectate without taking a slot.</p>
     </header>
 
     <section class="pixel-grid">
       <article class="pixel-card pixel-stack">
         <h2>Create Room</h2>
-        <label class="pixel-label">Your name
-          <input class="pixel-input username-input" type="text" maxlength="18" placeholder="PLAYER 1">
-        </label>
-
+        <label class="pixel-label">Your name<input class="pixel-input username-input" type="text" maxlength="18" placeholder="PLAYER 1"></label>
         <div>
           <div class="pixel-kicker" style="margin-bottom:8px">Game mode</div>
           <div class="mode-tabs">
-            <label class="mode-option">
-              <input type="radio" name="mode" value="classic" checked>
-              <span>Classic Co-op</span>
-            </label>
-            <label class="mode-option">
-              <input type="radio" name="mode" value="versus">
-              <span>Versus</span>
-            </label>
+            <label class="mode-option"><input type="radio" name="mode" value="classic" checked><span>Classic Co-op</span></label>
+            <label class="mode-option"><input type="radio" name="mode" value="versus"><span>Versus</span></label>
           </div>
         </div>
-
-        <p class="pixel-status" id="hostModeHint">Everyone works together through the same level set.</p>
+        <p class="pixel-status" id="hostModeHint">Everyone works together through five dynamically scaled puzzle templates.</p>
         <button class="pixel-btn green" id="createRoom">Create Room</button>
       </article>
 
       <article class="pixel-card pixel-stack">
         <h2>Join Room</h2>
-        <label class="pixel-label">Your name
-          <input class="pixel-input username-input" type="text" maxlength="18" placeholder="PLAYER 2">
-        </label>
-        <label class="pixel-label">Room code
-          <input class="pixel-input" id="codeInput" type="text" maxlength="12" autocomplete="off" placeholder="ABCD">
-        </label>
+        <label class="pixel-label">Your name<input class="pixel-input username-input" type="text" maxlength="18" placeholder="PLAYER 2"></label>
+        <label class="pixel-label">Room code<input class="pixel-input" id="codeInput" type="text" maxlength="12" autocomplete="off" placeholder="ABCD"></label>
         <button class="pixel-btn cyan" id="joinRoom">Join Room</button>
-        <p class="pixel-status">Team selection happens inside the lobby. The host enforces balanced teams.</p>
+        <p class="pixel-status">Team selection happens inside the lobby. The host enforces equal team sizes and a hard 6-player cap per team.</p>
       </article>
     </section>
 
     <section class="pixel-card" style="margin-top:18px">
       <div class="pixel-row" style="justify-content:space-between">
-        <div>
-          <h2 style="margin-bottom:6px">Build A Level</h2>
-          <div class="pixel-status">Use the redesigned grid editor with paint, erase, fill, resize, import/export, custom blocks, lasers, shields and instant play-testing.</div>
-        </div>
+        <div><h2 style="margin-bottom:6px">Build A Level</h2><div class="pixel-status">Load any of the five campaign templates at 1–6 players, then edit the generated geometry with the visual level lab.</div></div>
         <a class="pixel-btn pink" href="./lvl.html">Open Editor</a>
       </div>
     </section>
@@ -67,47 +50,21 @@
   </main>
 
   <script>
-    const usernameInputs = [...document.querySelectorAll('.username-input')];
-    const savedName = localStorage.getItem('username') || '';
-    usernameInputs.forEach(input => {
-      input.value = savedName;
-      input.addEventListener('input', () => {
-        localStorage.setItem('username', input.value.trim());
-        usernameInputs.forEach(other => { if (other !== input) other.value = input.value; });
-      });
-    });
-
-    const modeInputs = [...document.querySelectorAll('input[name="mode"]')];
-    const modeHint = document.getElementById('hostModeHint');
-    modeInputs.forEach(input => input.addEventListener('change', () => {
-      modeHint.textContent = input.value === 'versus'
-        ? 'Two balanced teams race through the level. Observers can spectate without affecting team counts.'
-        : 'Everyone works together through the same level set.';
+    const usernameInputs=[...document.querySelectorAll('.username-input')];
+    const savedName=localStorage.getItem('username')||'';
+    usernameInputs.forEach(input=>{input.value=savedName;input.addEventListener('input',()=>{localStorage.setItem('username',input.value.trim());usernameInputs.forEach(other=>{if(other!==input)other.value=input.value;});});});
+    const modeInputs=[...document.querySelectorAll('input[name="mode"]')];
+    const modeHint=document.getElementById('hostModeHint');
+    modeInputs.forEach(input=>input.addEventListener('change',()=>{
+      modeHint.textContent=input.value==='versus'
+        ? 'Two equal teams (1–6 each) race independently through all five stages. The host starts as an observer; first team to clear Level 5 wins.'
+        : 'Everyone works together through five dynamically scaled puzzle templates.';
     }));
-
-    function safeName() {
-      const name = (usernameInputs[0].value || '').trim().slice(0, 18);
-      localStorage.setItem('username', name || 'unnamed');
-      return name || 'unnamed';
-    }
-
-    document.getElementById('createRoom').addEventListener('click', () => {
-      safeName();
-      const mode = document.querySelector('input[name="mode"]:checked').value;
-      location.href = `./game.html?host=true&mode=${encodeURIComponent(mode)}`;
-    });
-
-    function joinRoom() {
-      safeName();
-      const code = document.getElementById('codeInput').value.trim().toUpperCase();
-      if (!code) return;
-      location.href = `./game.html?join=${encodeURIComponent(code)}`;
-    }
-
-    document.getElementById('joinRoom').addEventListener('click', joinRoom);
-    document.getElementById('codeInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') joinRoom();
-    });
+    function safeName(){const name=(usernameInputs[0].value||'').trim().slice(0,18);localStorage.setItem('username',name||'unnamed');return name||'unnamed';}
+    document.getElementById('createRoom').addEventListener('click',()=>{safeName();const mode=document.querySelector('input[name="mode"]:checked').value;location.href=`./game.html?host=true&mode=${encodeURIComponent(mode)}`;});
+    function joinRoom(){safeName();const code=document.getElementById('codeInput').value.trim().toUpperCase();if(!code)return;location.href=`./game.html?join=${encodeURIComponent(code)}`;}
+    document.getElementById('joinRoom').addEventListener('click',joinRoom);
+    document.getElementById('codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom();});
   </script>
 </body>
 </html>
