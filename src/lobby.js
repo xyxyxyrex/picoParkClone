@@ -13,10 +13,7 @@
   };
 
   window.showLobbyMessage=function(message,isError=false){
-    allId('lobbyMessage').forEach(el=>{
-      el.textContent=message||'';
-      el.className='pixel-status'+(isError?' error':'');
-    });
+    allId('lobbyMessage').forEach(el=>{el.textContent=message||'';el.className='pixel-status'+(isError?' error':'');});
   };
 
   window.showMatchWinner=function(label){
@@ -26,8 +23,7 @@
       overlay.innerHTML='<div class="pixel-card" style="text-align:center;max-width:620px"><div class="pixel-kicker">Campaign Complete</div><h1 id="matchWinnerText" style="font-size:46px;margin:12px 0"></h1><p class="pixel-status">First team to clear all five stages wins.</p><a class="pixel-btn green" href="./index.html">Back to Lobby</a></div>';
       document.body.appendChild(overlay);
     }
-    document.getElementById('matchWinnerText').textContent=`${label} WINS!`;
-    overlay.style.display='grid';
+    document.getElementById('matchWinnerText').textContent=`${label} WINS!`;overlay.style.display='grid';
   };
 
   window.renderLobbyState=function(state){
@@ -35,77 +31,68 @@
     setGameModeUI(state.mode||'classic');
     const buckets={team1:allId('team1Members'),team2:allId('team2Members'),observer:allId('observerMembers'),player:allId('classicMembers')};
     Object.values(buckets).flat().forEach(el=>el.innerHTML='');
-
     (state.members||[]).forEach(member=>{
       const role=state.mode==='versus'?(member.role||'observer'):'player';
-      (buckets[role]||[]).forEach(target=>{
-        const chip=document.createElement('div');
-        chip.className='member-chip';
-        chip.innerHTML=`${esc(member.username)}${member.isHost?' <small>[HOST]</small>':''}`;
-        target.appendChild(chip);
-      });
+      (buckets[role]||[]).forEach(target=>{const chip=document.createElement('div');chip.className='member-chip';chip.innerHTML=`${esc(member.username)}${member.isHost?' <small>[HOST]</small>':''}`;target.appendChild(chip);});
     });
-
-    const counts=state.counts||{team1:0,team2:0};
-    const cap=state.maxTeamPlayers||6;
+    const counts=state.counts||{team1:0,team2:0},cap=state.maxTeamPlayers||6;
     allId('team1Count').forEach(el=>el.textContent=`${counts.team1||0}/${cap}`);
     allId('team2Count').forEach(el=>el.textContent=`${counts.team2||0}/${cap}`);
-
-    const progress=state.progress||{team1:1,team2:1};
-    const finished=state.finished||{};
+    const progress=state.progress||{team1:1,team2:1},finished=state.finished||{};
     const p1=document.getElementById('score1'),p2=document.getElementById('score2');
-    if(p1) p1.textContent=finished.team1?'5/5':`${Math.min(5,progress.team1||1)}/5`;
-    if(p2) p2.textContent=finished.team2?'5/5':`${Math.min(5,progress.team2||1)}/5`;
+    if(p1)p1.textContent=finished.team1?'5/5':`${Math.min(5,progress.team1||1)}/5`;
+    if(p2)p2.textContent=finished.team2?'5/5':`${Math.min(5,progress.team2||1)}/5`;
     allId('team1Progress').forEach(el=>el.textContent=finished.team1?'FINISHED':`LEVEL ${progress.team1||1}`);
     allId('team2Progress').forEach(el=>el.textContent=finished.team2?'FINISHED':`LEVEL ${progress.team2||1}`);
-
     document.querySelectorAll('[data-role]').forEach(btn=>{
-      const role=btn.dataset.role;
-      const count=role==='team1'?counts.team1:role==='team2'?counts.team2:0;
-      btn.disabled=!!state.matchStarted || ((role==='team1'||role==='team2')&&count>=cap);
+      const role=btn.dataset.role,count=role==='team1'?counts.team1:role==='team2'?counts.team2:0;
+      btn.disabled=!!state.matchStarted||((role==='team1'||role==='team2')&&count>=cap);
     });
     if(state.matchWinner) showMatchWinner(state.matchWinner==='team1'?'TEAM 1':'TEAM 2');
   };
 
   function requestRole(role){
-    if(window.clientConnection){ clientConnection.requestRole(role); return; }
-    if(window.hostConnection){
-      const ok=hostConnection.requestHostRole(role);
-      showLobbyMessage(ok?(role==='observer'?'Host is observing.':'Host joined '+(role==='team1'?'Team 1.':'Team 2.')):'That host role would break team balance or the match already started.',!ok);
-    }
+    if(window.clientConnection){clientConnection.requestRole(role);return;}
+    if(window.hostConnection){const ok=hostConnection.requestHostRole(role);showLobbyMessage(ok?(role==='observer'?'Host is observing.':'Host joined '+(role==='team1'?'Team 1.':'Team 2.')):'That host role would break team balance or the match already started.',!ok);}
   }
 
   document.addEventListener('DOMContentLoaded',()=>{
     document.querySelectorAll('[data-role]').forEach(btn=>btn.addEventListener('click',()=>requestRole(btn.dataset.role)));
     const copy=document.getElementById('copyLink');
-    if(copy) copy.addEventListener('click',async e=>{
-      e.preventDefault();
-      if(!window.hostConnection||!hostConnection.joinConn) return;
-      const url=new URL('./game.html',window.location.href);
-      url.searchParams.set('join',hostConnection.joinConn.selfId);
-      await navigator.clipboard.writeText(url.toString());
-      showLobbyMessage('Invite link copied.');
-    });
+    if(copy)copy.addEventListener('click',async e=>{e.preventDefault();if(!window.hostConnection||!hostConnection.joinConn)return;const url=new URL('./game.html',window.location.href);url.searchParams.set('join',hostConnection.joinConn.selfId);await navigator.clipboard.writeText(url.toString());showLobbyMessage('Invite link copied.');});
   });
 
-  if(typeof Player !== 'undefined' && !Player.prototype.__observerPatch){
+  if(typeof Player!=='undefined'&&!Player.prototype.__observerPatch){
     Player.prototype.__observerPatch=true;
     const originalRestart=Player.prototype.restart;
+    const originalTestFalling=Player.prototype.testFalling;
     Player.prototype.setObserver=function(enabled){
-      enabled=!!enabled;
-      if(this.observer===enabled) return;
-      this.observer=enabled;
-      if(this.observer){
-        this.body.isStatic=true;this.body.collisionFilter.mask=0;
-        Matter.Body.setPosition(this.body,v(-10000,-10000));Matter.Body.setVelocity(this.body,v(0,0));
-      } else {
-        this.body.isStatic=false;this.body.collisionFilter={category:1,group:0,mask:4294967295};
-        originalRestart.call(this,0);
-      }
+      enabled=!!enabled;if(this.observer===enabled)return;this.observer=enabled;
+      if(this.observer){this.body.isStatic=true;this.body.collisionFilter.mask=0;Matter.Body.setPosition(this.body,v(-10000,-10000));Matter.Body.setVelocity(this.body,v(0,0));}
+      else{this.body.isStatic=false;this.body.collisionFilter={category:1,group:0,mask:4294967295};originalRestart.call(this,0);}
     };
     Player.prototype.restart=function(i=0){
       if(this.observer){Matter.Body.setPosition(this.body,v(-10000,-10000));Matter.Body.setVelocity(this.body,v(0,0));return;}
       return originalRestart.call(this,i);
+    };
+    Player.prototype.campaignRespawnPoint=function(){
+      const current=this.game&&this.game.levelHandler&&this.game.levelHandler.currentLevel;if(!current)return null;
+      if(current.campaign&&current.spawnByTeam&&this.team&&current.spawnByTeam[this.team])return current.spawnByTeam[this.team][this.campaignStage||1]||null;
+      return current.spawn||null;
+    };
+    Player.prototype.respawnAtCampaignCheckpoint=function(){
+      const point=this.campaignRespawnPoint();if(!point)return false;
+      this.dead=false;this.ready=false;this.body.isStatic=false;this.body.collisionFilter={category:1,group:0,mask:4294967295};
+      Matter.Body.setPosition(this.body,v(point.x*50,point.y*50));Matter.Body.setVelocity(this.body,v(0,0));this.setScale(1);return true;
+    };
+    Player.prototype.testFalling=function(){
+      const current=this.game&&this.game.levelHandler&&this.game.levelHandler.currentLevel;
+      if(current&&current.data){
+        let bottom=current.data.length*50+250;
+        if(current.campaign&&current.stageMeta&&this.team&&current.stageMeta[this.team]){const meta=current.stageMeta[this.team][this.campaignStage||1];if(meta&&meta.bounds)bottom=(meta.bounds.y+meta.bounds.h)*50+220;}
+        if(this.body.position.y>bottom&&this.respawnAtCampaignCheckpoint())return;
+      }
+      return originalTestFalling.call(this);
     };
   }
 })();
