@@ -24,7 +24,7 @@
   <div class="game-hud">
     <div class="hud-box"><a href="./index.html">HOME</a> <span id="restartWrap">/ <a id="restartLevel" href="#">RESTART</a></span></div>
     <div class="hud-box"><span id="modeLabel">CLASSIC CO-OP</span></div>
-    <div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">0</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">0</b></span></div>
+    <div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">1/5</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">1/5</b></span></div>
   </div>
 
   <div id="menu" class="game-menu-wrap">
@@ -47,13 +47,18 @@
           <button id="addLocalPlayer" class="pixel-btn secondary" style="margin-top:10px">Add Local Co-op Player</button>
         </div>
 
-        <div data-versus-only style="display:none">
+        <div data-versus-only style="display:none" class="pixel-stack">
+          <div class="role-picker">
+            <button class="pixel-btn red" data-role="team1">Host → Team 1</button>
+            <button class="pixel-btn blue" data-role="team2">Host → Team 2</button>
+            <button class="pixel-btn secondary" data-role="observer">Host → Observe</button>
+          </div>
           <div class="member-board">
-            <section class="team-column team1"><h3>Team 1 · <span id="team1Count">0</span></h3><div id="team1Members"></div></section>
-            <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0</span></h3><div id="team2Members"></div></section>
+            <section class="team-column team1"><h3>Team 1 · <span id="team1Count">0/6</span></h3><div class="pixel-status" id="team1Progress">LEVEL 1</div><div id="team1Members"></div></section>
+            <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0/6</span></h3><div class="pixel-status" id="team2Progress">LEVEL 1</div><div id="team2Members"></div></section>
             <section class="team-column observers"><h3>Observers</h3><div id="observerMembers"></div></section>
           </div>
-          <p class="pixel-status">Host is locked to Team 1. Guests can only join the smaller team (or either team when tied), keeping the room balanced at all times.</p>
+          <p class="pixel-status">Up to 6 players per team. The host starts as an observer and does not need to occupy a player slot. Teams must be equal before the five-level race starts.</p>
         </div>
 
         <hr class="pixel-divider">
@@ -81,11 +86,11 @@
             <button class="pixel-btn secondary" data-role="observer">Observe</button>
           </div>
           <div class="member-board">
-            <section class="team-column team1"><h3>Team 1 · <span id="team1Count">0</span></h3><div id="team1Members"></div></section>
-            <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0</span></h3><div id="team2Members"></div></section>
+            <section class="team-column team1"><h3>Team 1 · <span id="team1Count">0/6</span></h3><div class="pixel-status" id="team1Progress">LEVEL 1</div><div id="team1Members"></div></section>
+            <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0/6</span></h3><div class="pixel-status" id="team2Progress">LEVEL 1</div><div id="team2Members"></div></section>
             <section class="team-column observers"><h3>Observers</h3><div id="observerMembers"></div></section>
           </div>
-          <p class="pixel-status">Balance rule: you cannot stack the larger team. If Team 2 has 1 and Team 1 has 0, Team 2 is locked until Team 1 catches up.</p>
+          <p class="pixel-status">Balance rule: join the smaller team, or either team when tied. A team can never exceed 6 players.</p>
         </div>
         <div id="lobbyMessage" class="pixel-status">Waiting for room configuration...</div>
       </div>
@@ -99,6 +104,7 @@
   <script src="./src/blocks.js"></script>
   <script src="./src/lasers.js"></script>
   <script src="./src/jumppad.js"></script>
+  <script src="./src/campaignTemplates.js"></script>
   <script src="./src/levels.js"></script>
   <script src="./src/level.js"></script>
   <script src="./src/matterInit.js"></script>
@@ -108,6 +114,7 @@
   <script src="./src/update.js"></script>
   <script src="./src/player.js"></script>
   <script src="./src/render.js"></script>
+  <script src="./src/camera.js"></script>
   <script src="./src/entity.js"></script>
   <script src="./src/particles.js"></script>
   <script src="./src/game.js"></script>
@@ -122,12 +129,14 @@
       window.mainGame = new Game();
       const player1 = mainGame.playerhandler.addPlayer({controls:["arrowleft","arrowright","arrowup","arrowdown"],keys:keys});
       player1.username = (localStorage.getItem('username') || (urlData.host ? 'Host' : 'Player')).slice(0,18);
+      player1.isHostPlayer=!!urlData.host;
 
       window.hostConnection = undefined;
       window.clientConnection = undefined;
       if (urlData.host) {
         hostConnection = new Host(mainGame);
-        player1.team = hostConnection.mode === 'versus' ? 'team1' : 'player';
+        player1.team = hostConnection.hostRole;
+        if(hostConnection.mode==='versus' && player1.setObserver) player1.setObserver(true);
         hostConnection.init();
         setGameModeUI(hostConnection.mode);
         hostConnection.broadcastLobby();
@@ -138,7 +147,7 @@
         clientConnection.init(urlData.join.toUpperCase());
         document.getElementById('restartWrap').style.display='none';
       }
-      if (!urlData.host && !urlData.join) startGame();
+      if (!urlData.host&&!urlData.join) startGame();
 
       setInterval(()=>{
         if(window.hostConnection) hostConnection.updateClients();
@@ -151,22 +160,26 @@
 
     document.getElementById('restartLevel').addEventListener('click',e=>{
       e.preventDefault();
-      if(mainGame && mainGame.levelHandler.currentLevel.name) mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name);
+      if(mainGame&&mainGame.levelHandler.currentLevel.name) mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name);
     });
 
     document.getElementById('addLocalPlayer').addEventListener('click',()=>{
-      if(window.hostConnection && hostConnection.mode==='versus') return showLobbyMessage('Local co-op slots are disabled in Versus mode so team balancing stays deterministic.',true);
+      if(window.hostConnection&&hostConnection.mode==='versus') return showLobbyMessage('Local co-op slots are disabled in Versus mode so team balancing stays deterministic.',true);
       mainGame.playerhandler.addPlayer({controls:['a','d','w','s'],keys:keys,color:mainGame.fetchColor(),username:'Local P2'});
       if(window.hostConnection) hostConnection.broadcastLobby();
     });
 
     document.getElementById('startGameButton').addEventListener('click',()=>{
-      if(window.hostConnection && hostConnection.mode==='versus'){
+      if(window.hostConnection&&hostConnection.mode==='versus'){
         const counts=hostConnection.getCounts();
-        if(counts.team1===0 || counts.team1!==counts.team2) return showLobbyMessage(`Teams must be equal before starting. Team 1: ${counts.team1}, Team 2: ${counts.team2}.`,true);
+        if(counts.team1===0||counts.team2===0||counts.team1!==counts.team2) return showLobbyMessage(`Teams must be equal and non-zero. Team 1: ${counts.team1}/6, Team 2: ${counts.team2}/6.`,true);
+        if(counts.team1>6||counts.team2>6) return showLobbyMessage('Maximum team size is 6.',true);
       }
       startGame();
-      if(window.hostConnection) hostConnection.broadcast(JSON.stringify({startGame:true}));
+      if(window.hostConnection){
+        hostConnection.broadcast(JSON.stringify({startGame:true}));
+        setTimeout(()=>hostConnection.beginMatch(),80);
+      }
     });
 
     window.onload=()=>{
