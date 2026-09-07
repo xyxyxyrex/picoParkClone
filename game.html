@@ -1,204 +1,194 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <script src="./libs/common.js"></script>
-    <script src="./libs/matter.min.js"></script>
-    <script src="./libs/matterjsRaycast.js"></script>
-    <script src="./libs/peer.js"></script>
-    <script src="libs/words.js"></script>
-
-    <link rel="icon" href="./assets/imgs/favicon.png">
-    <title id="title">Microscopic Natural Area for Public Recreational Activities</title>
-
-    <style>
-        @font-face {
-            font-family: squareforced;
-            src: local('FORCEDSQUARE'), url(./assets/FORCEDSQUARE.ttf) format('truetype');
-
-        }
-        body {
-            margin: 0%;
-            overflow: hidden;
-        }
-        .overlay {
-            position: fixed;
-            top: 0%;
-            left: 0%;
-            z-index: 10;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="./libs/common.js"></script>
+  <script src="./libs/matter.min.js"></script>
+  <script src="./libs/matterjsRaycast.js"></script>
+  <script src="./libs/peer.js"></script>
+  <script src="./libs/words.js"></script>
+  <link rel="icon" href="./assets/imgs/favicon.png">
+  <link rel="stylesheet" href="./ui.css">
+  <title id="title">Tiny Park</title>
 </head>
-<body>
+<body class="arcade-ui game-page">
+  <script>
+    const params = new URLSearchParams(location.search);
+    window.urlData = Object.fromEntries(params.entries());
+    window.localfile = location.protocol === 'file:';
+  </script>
 
-    <script>
-        var url = location.href,
-            urlData = url.split("?").splice(-1,1)
+  <canvas id="c" style="display:none"></canvas>
 
-        data = {}
-        urlData.forEach((e)=>{
-            data[e.split("=")[0]] = e.split("=")[1]
-        })
+  <div class="game-hud">
+    <div class="hud-box"><a href="./index.html">HOME</a> <span id="restartWrap">/ <a id="restartLevel" href="#">RESTART</a></span></div>
+    <div class="hud-box"><span id="modeLabel">CLASSIC CO-OP</span></div>
+    <div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">0</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">0</b></span></div>
+  </div>
 
-        urlData = data
-    </script>
-
-    <canvas id="c" style="display: none;"></canvas>
-    <div class="overlay">
-        <a href="./index.html">Back to Home</a> | 
-        <a style="display: none;" id="restartLevel" href="#"  onClick="(function(){
-            mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name)
-            return false;
-        })();return false;">Restart Level</a>
-    </div>
-    <script src="./src/multiplayer.js"></script>
-    <script src="./src/buttons.js"></script>
-    <script src="./src/door.js"></script>
-    <script src="./src/trigger.js"></script>
-    <script src="./src/blocks.js"></script>
-    <script src="./src/lasers.js"></script>
-    <script src="./src/jumppad.js"></script>
-
-    <script src="./src/levels.js"></script>
-    <script src="./src/level.js"></script>
-
-    <script src="./src/matterInit.js"></script>
-    <script src="./src/atlasSetup.js"></script>
-
-    <script src="src/syncController.js"></script>
-
-    <script src="./src/controls.js"></script>
-    <script src="./src/update.js"></script>
-
-    <script src="./src/player.js"></script>
-    <script src="./src/render.js"></script>
-
-    <script src="./src/entity.js"></script>
-    <script src="src/particles.js"></script>
-
-    <script src="./src/game.js"></script>
-
-    <script src="./src/constraints.js"></script>
-
-    <script src="./src/host.js"></script>
-    <script src="./src/client.js"></script>
-
-    <script src="./src/menu.js"></script>
-
-    <div id="menu">
-        <br>
-        <div id="host" style="display: none;">
-            <div id="gameDetails">
-                <div id="gameCode">Code: <b id="roomCode">fetching</b><span id="incoming"></span></div>
-                <a id="copyLink" href="#" onclick="(function(){
-        navigator.clipboard.writeText(`https://aeolus-1.github.io/picoParkClone/game.html?join=${hostConnection.joinConn.selfId}`);
-        return false;
-    })();return false;">[Copy Link]</a>
-            </div>
-            <div id="memberList" style="border: solid black 1px; width:200px">
-                <h2>Members:</h2>
-                <div id="memberlist"></div>
-                <div>Host<br></div>
-
-            </div>
-            <button onClick="(function(){
-                mainGame.playerhandler.addPlayer({
-                    controls:['a','d','w','s'],
-                    keys:keys,
-                    color:mainGame.fetchColor(),
-                })
-                addPlayerToMenu('Player2')
-                return false;
-            })();return false;">Add local co-op Player</button>
-<hr>
-            <button onClick="(function(){
-                startGame()
-                hostConnection.broadcast(JSON.stringify({
-                    startGame:true,
-                }))
-                return false;
-            })();return false;">Start Game</button>
-            </div>
-
-        <div id="join" style="display: none;">
-            Waiting for host to start (maybe idk really)
+  <div id="menu" class="game-menu-wrap">
+    <main class="game-menu pixel-card pixel-stack">
+      <div id="host" style="display:none">
+        <div class="pixel-row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="pixel-kicker">Room Code <span id="incoming"></span></div>
+            <div class="room-code" id="roomCode">FETCHING</div>
+          </div>
+          <div class="pixel-row">
+            <a href="#" id="copyLink" class="pixel-btn small cyan">Copy Invite</a>
+            <a href="./lvl.html" class="pixel-btn small secondary">Editor</a>
+          </div>
         </div>
-    </div>
 
-    <script>
-        window.localfile = location.protocol=="file:"
-        function initGame() {
-            window.mainGame = new Game()
+        <div id="classicBoard">
+          <h2>Players</h2>
+          <div class="team-column"><div id="classicMembers"></div></div>
+          <button id="addLocalPlayer" class="pixel-btn secondary" style="margin-top:10px">Add Local Co-op Player</button>
+        </div>
 
-            var player1 = mainGame.playerhandler.addPlayer({
-            controls:["arrowleft","arrowright","arrowup","arrowdown"],
-            keys:keys,
-        }) 
+        <div data-versus-only style="display:none">
+          <div class="member-board">
+            <section class="team-column team1"><h3>Team 1 · <span id="team1Count">0</span></h3><div id="team1Members"></div></section>
+            <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0</span></h3><div id="team2Members"></div></section>
+            <section class="team-column observers"><h3>Observers</h3><div id="observerMembers"></div></section>
+          </div>
+          <p class="pixel-status">Host is locked to Team 1. Guests can only join the smaller team (or either team when tied), keeping the room balanced at all times.</p>
+        </div>
 
-            window.hostConnection;window.clientConnection
-            if (urlData.host) {hostConnection = new Host(mainGame);hostConnection.init()}
-            if (urlData.join) {
-                clientConnection = new Client(mainGame,player1);clientConnection.init(urlData.join)
-                document.getElementById("restartLevel").style.display = "none"
-            }
-            if (!urlData.host&&!urlData.join) startGame()
+        <hr class="pixel-divider">
+        <div class="pixel-row" style="justify-content:space-between">
+          <div id="lobbyMessage" class="pixel-status">Share the room code when everyone is ready.</div>
+          <button id="startGameButton" class="pixel-btn green">Start Game</button>
+        </div>
+      </div>
 
+      <div id="join" style="display:none" class="pixel-stack">
+        <div>
+          <div class="pixel-kicker">Connected Lobby</div>
+          <h1 style="margin:6px 0 0">Choose Your Slot</h1>
+        </div>
 
-            setInterval(() => {
-                if (window.hostConnection) hostConnection.updateClients()
-                if (window.clientConnection) clientConnection.updateHost()
+        <div id="classicJoinBoard">
+          <p class="pixel-status">You are connected as a player. Waiting for the host to start.</p>
+          <div class="team-column"><div id="classicMembers"></div></div>
+        </div>
 
-            }, 10);
+        <div data-versus-only style="display:none" class="pixel-stack">
+          <div class="role-picker">
+            <button class="pixel-btn red" data-role="team1">Join Team 1</button>
+            <button class="pixel-btn blue" data-role="team2">Join Team 2</button>
+            <button class="pixel-btn secondary" data-role="observer">Observe</button>
+          </div>
+          <div class="member-board">
+            <section class="team-column team1"><h3>Team 1 · <span id="team1Count">0</span></h3><div id="team1Members"></div></section>
+            <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0</span></h3><div id="team2Members"></div></section>
+            <section class="team-column observers"><h3>Observers</h3><div id="observerMembers"></div></section>
+          </div>
+          <p class="pixel-status">Balance rule: you cannot stack the larger team. If Team 2 has 1 and Team 1 has 0, Team 2 is locked until Team 1 catches up.</p>
+        </div>
+        <div id="lobbyMessage" class="pixel-status">Waiting for room configuration...</div>
+      </div>
+    </main>
+  </div>
 
-            setInterval(() => {
-                mainGame.players.forEach((e)=>{if(!e.onlinePlayer) e.updateKeys(keys)})
-            }, 5);
-            
-        }
-        function startMainGame() {
-            mainGame.testInit()
-            mainGame.initRender()
-        }
+  <script src="./src/multiplayer.js"></script>
+  <script src="./src/buttons.js"></script>
+  <script src="./src/door.js"></script>
+  <script src="./src/trigger.js"></script>
+  <script src="./src/blocks.js"></script>
+  <script src="./src/lasers.js"></script>
+  <script src="./src/jumppad.js"></script>
+  <script src="./src/levels.js"></script>
+  <script src="./src/level.js"></script>
+  <script src="./src/matterInit.js"></script>
+  <script src="./src/atlasSetup.js"></script>
+  <script src="./src/syncController.js"></script>
+  <script src="./src/controls.js"></script>
+  <script src="./src/update.js"></script>
+  <script src="./src/player.js"></script>
+  <script src="./src/render.js"></script>
+  <script src="./src/entity.js"></script>
+  <script src="./src/particles.js"></script>
+  <script src="./src/game.js"></script>
+  <script src="./src/constraints.js"></script>
+  <script src="./src/host.js"></script>
+  <script src="./src/client.js"></script>
+  <script src="./src/menu.js"></script>
+  <script src="./src/lobby.js"></script>
 
-       
+  <script>
+    function initGame() {
+      window.mainGame = new Game();
+      const player1 = mainGame.playerhandler.addPlayer({controls:["arrowleft","arrowright","arrowup","arrowdown"],keys:keys});
+      player1.username = (localStorage.getItem('username') || (urlData.host ? 'Host' : 'Player')).slice(0,18);
 
+      window.hostConnection = undefined;
+      window.clientConnection = undefined;
+      if (urlData.host) {
+        hostConnection = new Host(mainGame);
+        player1.team = hostConnection.mode === 'versus' ? 'team1' : 'player';
+        hostConnection.init();
+        setGameModeUI(hostConnection.mode);
+        hostConnection.broadcastLobby();
+      }
+      if (urlData.join) {
+        clientConnection = new Client(mainGame,player1);
+        if (player1.setObserver) player1.setObserver(true);
+        clientConnection.init(urlData.join.toUpperCase());
+        document.getElementById('restartWrap').style.display='none';
+      }
+      if (!urlData.host && !urlData.join) startGame();
 
-        window.onload=()=>{
-            _loadFont("squareforced")
+      setInterval(()=>{
+        if(window.hostConnection) hostConnection.updateClients();
+        if(window.clientConnection) clientConnection.updateHost();
+      },10);
+      setInterval(()=>mainGame.players.forEach(p=>{if(!p.onlinePlayer&&!p.observer)p.updateKeys(keys);}),5);
+    }
 
-            if (urlData.host) {
-                document.getElementById("host").style.display = ""
-            } else if (urlData.join) {
-                document.getElementById("join").style.display = ""
-            }
+    function startMainGame(){ mainGame.testInit(); mainGame.initRender(); }
 
-            initGame()
+    document.getElementById('restartLevel').addEventListener('click',e=>{
+      e.preventDefault();
+      if(mainGame && mainGame.levelHandler.currentLevel.name) mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name);
+    });
 
-            let tempLevel = localStorage.getItem("tempLevel")
-            console.log(tempLevel)
-            if (tempLevel != null) {
-                let levelString = `({${atob(tempLevel)}})`
-                document.getElementById("gameCode").innerHTML = "-- temp level loaded --"
-                document.getElementById("title").textContent = "temp-level"
-                document.getElementById("copyLink").style.display = "none"
-                levels.tempLevel = eval(levelString)["tempName"]
-                mainGame.runTemp = true
-                localStorage.removeItem("tempLevel")
-                    
-            }
-        }
-        function setLevel(lvl) {
-    mainGame.renderer.levelTransistion(lvl)
-                            if (window.hostConnection) {
-                                hostConnection.broadcast(JSON.stringify({
-                                    setLevel:lvl,
-                                }))
-                            }
-}
-       
-    </script>
+    document.getElementById('addLocalPlayer').addEventListener('click',()=>{
+      if(window.hostConnection && hostConnection.mode==='versus') return showLobbyMessage('Local co-op slots are disabled in Versus mode so team balancing stays deterministic.',true);
+      mainGame.playerhandler.addPlayer({controls:['a','d','w','s'],keys:keys,color:mainGame.fetchColor(),username:'Local P2'});
+      if(window.hostConnection) hostConnection.broadcastLobby();
+    });
 
+    document.getElementById('startGameButton').addEventListener('click',()=>{
+      if(window.hostConnection && hostConnection.mode==='versus'){
+        const counts=hostConnection.getCounts();
+        if(counts.team1===0 || counts.team1!==counts.team2) return showLobbyMessage(`Teams must be equal before starting. Team 1: ${counts.team1}, Team 2: ${counts.team2}.`,true);
+      }
+      startGame();
+      if(window.hostConnection) hostConnection.broadcast(JSON.stringify({startGame:true}));
+    });
+
+    window.onload=()=>{
+      _loadFont('squareforced');
+      if(urlData.host) document.getElementById('host').style.display='';
+      else if(urlData.join) document.getElementById('join').style.display='';
+      initGame();
+
+      const tempLevel=localStorage.getItem('tempLevel');
+      if(tempLevel!=null){
+        const levelString=`({${atob(tempLevel)}})`;
+        document.getElementById('title').textContent='temp-level';
+        levels.tempLevel=eval(levelString)['tempName'];
+        mainGame.runTemp=true;
+        localStorage.removeItem('tempLevel');
+      }
+    };
+
+    function setLevel(lvl){
+      mainGame.renderer.levelTransistion(lvl);
+      if(window.hostConnection) hostConnection.broadcast(JSON.stringify({setLevel:lvl}));
+    }
+  </script>
 </body>
 </html>
