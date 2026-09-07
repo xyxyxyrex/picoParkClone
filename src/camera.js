@@ -1,6 +1,6 @@
 /* Smooth player-aware camera. Loaded after render.js and before Game is created. */
 (function(){
-  if(!window.Renderer) return;
+  if(typeof Renderer==='undefined') return;
 
   Renderer.prototype.cameraPlayers=function(){
     const players=this.game.players.filter(p=>!p.observer&&!p.unloading&&!p.ready&&p.body);
@@ -8,15 +8,12 @@
     const versus=(window.hostConnection&&hostConnection.mode==='versus')||(window.clientConnection&&clientConnection.mode==='versus');
     if(!versus) return players;
 
-    // Active competitors follow their own team/current campaign stage.
     if(window.clientConnection && clientConnection.role!=='observer'){
       const mine=this.game.players.find(p=>p.body&&clientConnection.mainPlayer&&p.body.id===clientConnection.mainPlayer.body.id) || clientConnection.mainPlayer;
       const stage=mine&&mine.campaignStage||1;
       return players.filter(p=>p.team===clientConnection.role&&p.campaignStage===stage);
     }
 
-    // Spectators follow the leading stage. If tied, frame both lanes so the host
-    // can compare the race without zooming out across already-completed stages.
     let lead=1;
     players.forEach(p=>lead=Math.max(lead,p.campaignStage||1));
     return players.filter(p=>(p.campaignStage||1)===lead);
