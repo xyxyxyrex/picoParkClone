@@ -6,7 +6,7 @@ class Client {
         this.mainConn = null;
         this.recentPing = 0;
         this.username = (localStorage.getItem("username") || "unnamed").slice(0,18);
-        this.role = "observer";
+        this.role = "player";
         this.mode = "classic";
     }
     init(roomId) {
@@ -28,10 +28,22 @@ class Client {
                 this.mainConn.send(JSON.stringify({setUsername:this.username}));
             };
         }
-        if(d.roomConfig){ this.mode=d.roomConfig.mode||"classic"; if(window.setGameModeUI) setGameModeUI(this.mode); }
+        if(d.roomConfig){
+            this.mode=d.roomConfig.mode||"classic";
+            if(this.mode==="versus" && this.role==="player") {
+                this.role="observer";
+                if(this.mainPlayer.setObserver) this.mainPlayer.setObserver(true);
+            }
+            if(this.mode==="classic") {
+                this.role="player";
+                if(this.mainPlayer.setObserver) this.mainPlayer.setObserver(false);
+            }
+            if(window.setGameModeUI) setGameModeUI(this.mode);
+        }
         if(d.lobbyState && window.renderLobbyState) renderLobbyState(d.lobbyState);
         if(d.roleResult){
             this.role=d.roleResult.role||this.role;
+            this.mainPlayer.team=this.role;
             if(this.mainPlayer.setObserver) this.mainPlayer.setObserver(this.role==="observer");
             if(window.showLobbyMessage) showLobbyMessage(d.roleResult.message || (d.roleResult.ok?`Joined ${this.role}.`:"Role change rejected."), !d.roleResult.ok);
         }
@@ -41,6 +53,7 @@ class Client {
         if(d.startGame) startGame();
         if(d.setLevel) this.game.renderer.levelTransistion(d.setLevel);
         if(d.restartLevel) this.game.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name);
+        if(d.versusRoundWinner && window.showLobbyMessage) showLobbyMessage(`${d.versusRoundWinner==='team1'?'Team 1':'Team 2'} wins the round!`);
     }
     requestRole(role){
         if(this.mainConn&&this.mainConn.fullyConnected) this.mainConn.send(JSON.stringify({requestRole:role}));
