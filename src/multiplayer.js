@@ -111,14 +111,18 @@ function parsePlayerData(player) {
     shields:player.hasShield,
     dead:player.dead,
     team:player.team || null,
-    username:player.username || "Player"
+    username:player.username || "Player",
+    campaignStage:player.campaignStage || 1,
+    observer:!!player.observer
   };
 }
 
 function setPlayerWithData(player,data,updatePhysics=true) {
-  if(updatePhysics) { Matter.Body.setPosition(player.body,data.position); player.direction=data.direction; }
+  if(updatePhysics && data.position) { Matter.Body.setPosition(player.body,data.position); player.direction=data.direction; }
   if(!window.hostConnection) player.updateKeys(data.keys||{});
-  player.color=data.color; player.frame=data.frame; player.ready=data.ready; player.hasShield=data.shields; player.dead=data.dead;
+  player.color=data.color; player.frame=data.frame; player.ready=data.ready; player.hasShield=data.shields||player.hasShield; player.dead=data.dead;
   player.team=data.team||null; player.username=data.username||player.username||"Player";
-  player.setScale(data.scale);
+  player.campaignStage=data.campaignStage||1;
+  if(player.setObserver) player.setObserver(!!data.observer);
+  player.setScale(data.scale||1);
 }
