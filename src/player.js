@@ -244,7 +244,36 @@ class Player {
     updateKeys(keys) {
         this.keys = {...keys}
     }
+    touchesLevelBoundary() {
+        const current = this.game.levelHandler.currentLevel
+        const boundaries = current.boundaries || []
+        if (!boundaries.length || !this.body?.bounds) return false
+        const cell = current.cellsize || v(50,50)
+        const playerBounds = this.body.bounds
+        return boundaries.some(boundary=>{
+            const pos = boundary.pos || v()
+            const size = boundary.size || v(1,1)
+            // Grid objects are centered on x*cell/y*cell in the Matter world,
+            // so a W×H boundary spans half a cell before its authored origin.
+            const minX = (pos.x-.5)*cell.x
+            const maxX = (pos.x+size.x-.5)*cell.x
+            const minY = (pos.y-.5)*cell.y
+            const maxY = (pos.y+size.y-.5)*cell.y
+            return playerBounds.max.x>minX && playerBounds.min.x<maxX &&
+                playerBounds.max.y>minY && playerBounds.min.y<maxY
+        })
+    }
     testFalling() {
+        if (this.touchesLevelBoundary()) {
+            if (this.game.playersBinded) this.game.resetBoundPlayers("level-boundary")
+            else {
+                this.restart()
+                this.lastResetReason = "level-boundary"
+            }
+            return
+        }
+        // Keep the historical world-bottom check as an emergency fallback for
+        // legacy levels that have not authored explicit Level Boundary blocks.
         if (this.body.position.y >= (this.game.renderer.levelBounds.size.y + 250)) {
             this.restart()
 
