@@ -142,6 +142,8 @@ class VersusSession {
             mainGame.players = [player];
           }
         }
+        if (Number.isInteger(info.tetherIndex))
+          player.tetherIndex = info.tetherIndex;
       }
       if (!game.running) {
         game.options.stage = data.stage;
