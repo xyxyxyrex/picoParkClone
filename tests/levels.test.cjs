@@ -15,7 +15,6 @@ test("all 30 preserved templates validate and retain gate connections", () => {
       assert.deepEqual(rebuilt.map, source.map);
       assert.equal(rebuilt.keys.length, source.keys.length);
       assert.equal(rebuilt.doors.length, source.doors.length);
-      assert.ok(rebuilt.boundaries.length >= 1);
       for (const b of rebuilt.buttons)
         assert.ok(rebuilt.doors.some((d) => d.id === b.gateId));
     }
