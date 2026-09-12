@@ -25,6 +25,10 @@
       "Pressure switch",
       "Link to a gate. Choose whether any or all connected switches must be held.",
     ],
+    boundary: [
+      "Level boundary",
+      "Editor-only reset zone. It is invisible and non-solid during gameplay.",
+    ],
   };
   const atlas = new Image(),
     players = new Image(),
@@ -148,6 +152,7 @@
     $("objectW").disabled = $("objectH").disabled = ![
       "terrain",
       "block",
+      "boundary",
     ].includes(object.type);
     $("switchFields").hidden = object.type !== "switch";
     $("gateSelect").replaceChildren();
@@ -212,6 +217,25 @@
           const source = b === 0 ? [126, 194] : [389, 191];
           sprite(c, atlas, ...source, 161, 161, x + a, y + b, 1, 1);
         }
+    } else if (type === "boundary") {
+      c.save();
+      c.fillStyle = "rgba(220, 35, 35, 0.2)";
+      c.fillRect(x, y, w, h);
+      c.strokeStyle = "#c52020";
+      c.lineWidth = 0.055;
+      for (let a = 0; a < w; a++)
+        for (let b = 0; b < h; b++) {
+          const bx = x + a,
+            by = y + b;
+          c.strokeRect(bx + 0.06, by + 0.06, 0.88, 0.88);
+          c.beginPath();
+          c.moveTo(bx + 0.22, by + 0.22);
+          c.lineTo(bx + 0.78, by + 0.78);
+          c.moveTo(bx + 0.78, by + 0.22);
+          c.lineTo(bx + 0.22, by + 0.78);
+          c.stroke();
+        }
+      c.restore();
     } else if (type === "key")
       sprite(c, atlas, 115, 514, 159, 215, x + 0.15, y + 0.03, 0.7, 0.94);
     else if (["grow", "shrink", "switch"].includes(type)) {
@@ -273,7 +297,12 @@
     for (const o of l.objects.filter((o) => o.type === "terrain"))
       for (let y = o.y; y < o.y + o.h; y++)
         for (let x = o.x; x < o.x + o.w; x++) terrain.add(`${x},${y}`);
-    for (const o of l.objects) drawObject(ctx, o, terrain);
+    for (const o of l.objects.filter((o) => o.type !== "boundary"))
+      drawObject(ctx, o, terrain);
+    // Boundaries are deliberately drawn last and translucent so the editor can
+    // inspect them even when they overlap floor tiles. Runtime never renders them.
+    for (const o of l.objects.filter((o) => o.type === "boundary"))
+      drawObject(ctx, o, terrain);
     const active = l.objects.find((o) => o.id === selected);
     if (active?.type === "switch") {
       const gate = l.objects.find((o) => o.id === active.gateId);
@@ -630,7 +659,7 @@
         selected = null;
       }
       if (name === "rotate") {
-        if (["block", "terrain"].includes(o.type)) [o.w, o.h] = [o.h, o.w];
+        if (["block", "terrain", "boundary"].includes(o.type)) [o.w, o.h] = [o.h, o.w];
         o.rotation = (o.rotation + 1) % 4;
       }
     });
