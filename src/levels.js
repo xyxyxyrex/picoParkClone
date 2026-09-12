@@ -80,6 +80,7 @@ function instantiateBlueprint(blueprint,nextLevel=null){
     blocks:(blueprint.blocks||[]).map(b=>({pos:v(b.pos.x,b.pos.y),size:v(b.size.x,b.size.y),minPlayers:b.minPlayers||0,static:!!b.static})),
     lasers:(blueprint.lasers||[]).map(l=>({pos:v(l.pos.x,l.pos.y),angle:l.angle,enabled:l.enabled!==false,team:l.team||null,stage:l.stage||null})),
     jumppads:(blueprint.jumppads||[]).map(j=>v(j.x,j.y)),
+    boundaries:(blueprint.boundaries||[]).map(b=>({pos:v(b.pos.x,b.pos.y),size:v(b.size.x,b.size.y)})),
     doors
   };
 }
