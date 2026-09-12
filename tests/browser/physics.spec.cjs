@@ -126,3 +126,127 @@ test("open gates leave the collision world and closed gates restore their blocke
   expect(state.closedBodyPresent).toBe(true);
   expect(state.reclosedCollision).toBe(true);
 });
+
+test("tether is slack inside its rest length and pulls both players symmetrically when taut", async ({
+  page,
+}) => {
+  await page.goto("/test");
+  const state = await page.evaluate(() => {
+    const g = new Game();
+    const a = g.playerhandler.addPlayer({});
+    const b = g.playerhandler.addPlayer({});
+    const c = g.playerhandler.addPlayer({});
+
+    Matter.Body.setPosition(a.body, v(100, 100));
+    Matter.Body.setPosition(b.body, v(180, 100));
+    Matter.Body.setPosition(c.body, v(260, 100));
+    g.bindPlayers([a, b, c]);
+
+    g.constraintHandler.updateConstraints();
+    const slack = {
+      linkCount: g.constraints.length,
+      forces: [a.body.force.x, b.body.force.x, c.body.force.x],
+      taut: g.constraints.map((link) => link.taut),
+    };
+
+    for (const player of [a, b, c]) {
+      player.body.force.x = 0;
+      player.body.force.y = 0;
+      player.constraintVel = v();
+    }
+    Matter.Body.setPosition(b.body, v(230, 100));
+    const before = [a.body.position.x, b.body.position.x, c.body.position.x];
+    g.constraintHandler.updateConstraints();
+
+    return {
+      slack,
+      before,
+      after: [a.body.position.x, b.body.position.x, c.body.position.x],
+      taut: g.constraints.map((link) => link.taut),
+      forceA: { ...a.body.force },
+      forceB: { ...b.body.force },
+      forceC: { ...c.body.force },
+      constraintVel: [a.constraintVel.x, b.constraintVel.x, c.constraintVel.x],
+      order: g.players.map((player) => player.tetherIndex),
+      restLength: g.constraints[0].restLength,
+      maxLength: g.constraints[0].maxLength,
+    };
+  });
+
+  expect(state.slack.linkCount).toBe(2);
+  expect(state.slack.forces.every((force) => Math.abs(force) < 1e-12)).toBe(true);
+  expect(state.slack.taut).toEqual([false, false]);
+  expect(state.taut).toEqual([true, false]);
+  expect(state.forceA.x).toBeGreaterThan(0);
+  expect(state.forceB.x).toBeLessThan(0);
+  expect(Math.abs(state.forceA.x + state.forceB.x)).toBeLessThan(1e-12);
+  expect(Math.abs(state.forceC.x)).toBeLessThan(1e-12);
+  expect(state.after).toEqual(state.before);
+  expect(state.constraintVel).toEqual([0, 0, 0]);
+  expect(state.order).toEqual([0, 1, 2]);
+  expect(state.restLength).toBe(100);
+  expect(state.maxLength).toBe(150);
+});
+
+test("tether order follows roster indices instead of Matter body ids", async ({
+  page,
+}) => {
+  await page.goto("/test");
+  const state = await page.evaluate(() => {
+    const g = new Game();
+    const first = g.playerhandler.addPlayer({ bodyOptions: { id: "z-player" } });
+    const second = g.playerhandler.addPlayer({ bodyOptions: { id: "a-player" } });
+    const third = g.playerhandler.addPlayer({ bodyOptions: { id: "m-player" } });
+
+    g.bindPlayers([first, second, third]);
+    return {
+      indices: [first.tetherIndex, second.tetherIndex, third.tetherIndex],
+      links: g.constraints.map((link) => [link.bodyA.body.id, link.bodyB.body.id]),
+    };
+  });
+
+  expect(state.indices).toEqual([0, 1, 2]);
+  expect(state.links).toEqual([
+    ["z-player", "a-player"],
+    ["a-player", "m-player"],
+  ]);
+});
+
+test("extreme tether separation resets the linked group instead of applying an explosive force", async ({
+  page,
+}) => {
+  await page.goto("/test");
+  const state = await page.evaluate(() => {
+    const g = new Game();
+    const a = g.playerhandler.addPlayer({});
+    const b = g.playerhandler.addPlayer({});
+    g.levelHandler.currentLevel = { spawn: { x: 4, y: 8 } };
+    g.bindPlayers([a, b]);
+
+    Matter.Body.setPosition(a.body, v(100, 100));
+    Matter.Body.setPosition(b.body, v(1000, 100));
+    Matter.Body.setVelocity(a.body, v(6, -4));
+    Matter.Body.setVelocity(b.body, v(-8, 7));
+    g.constraintHandler.updateConstraints();
+
+    return {
+      reason: g.lastTetherResetReason,
+      a: { pos: { ...a.body.position }, vel: { ...a.body.velocity } },
+      b: { pos: { ...b.body.position }, vel: { ...b.body.velocity } },
+      force: g.constraints[0].force,
+      taut: g.constraints[0].taut,
+    };
+  });
+
+  expect(state.reason).toBe("tether-teleport");
+  expect(state.a.pos.x).toBe(200);
+  expect(state.b.pos.x).toBe(200);
+  expect(state.a.pos.y).toBe(400);
+  expect(state.b.pos.y).toBe(350);
+  expect(state.a.vel.x).toBe(0);
+  expect(state.a.vel.y).toBe(0);
+  expect(state.b.vel.x).toBe(0);
+  expect(state.b.vel.y).toBe(0);
+  expect(state.force).toBe(0);
+  expect(state.taut).toBe(false);
+});
