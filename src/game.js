@@ -189,6 +189,11 @@ class Game {
 
   bindPlayers(players) {
     const pla = players.filter((p) => !p.observer && !p.unloading).slice();
+    if (
+      pla.length > 1 &&
+      pla.every((player) => Number.isInteger(player.tetherIndex))
+    )
+      pla.sort((a, b) => a.tetherIndex - b.tetherIndex);
     this.constraintHandler.clear();
     pla.forEach((player, index) => {
       player.tetherIndex = index;
