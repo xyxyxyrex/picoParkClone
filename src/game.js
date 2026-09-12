@@ -41,15 +41,21 @@ class Game {
       self.updateEntities();
     };
     this.afterUpdateMobiles = (self) => {
+      let removedBoundPlayer = false;
       for (let i = self.players.length - 1; i >= 0; i--) {
         const player = self.players[i];
-        if (player.unloading) self.players.splice(i, 1);
-        else player.updatePlayerParts();
+        if (player.unloading) {
+          removedBoundPlayer ||= self.playersBinded;
+          self.players.splice(i, 1);
+        } else player.updatePlayerParts();
       }
+      if (removedBoundPlayer)
+        self.bindPlayers(self.players.filter((p) => !p.observer && !p.unloading));
     };
     this.currentColor = randInt(0, 7);
     this.lastDelta = 0;
     this.deltaTime = 0;
+    this._resettingTether = false;
   }
   updateDelta(delta = 1000 / 60) {
     this.deltaTime = delta / (1000 / 60);
@@ -180,18 +186,41 @@ class Game {
     else this.levelHandler.setLevel("one");
     this.running = true;
   }
+
   bindPlayers(players) {
-    const pla = players
+    const pla = players.filter((p) => !p.observer && !p.unloading).slice();
+    this.constraintHandler.clear();
+    pla.forEach((player, index) => {
+      player.tetherIndex = index;
+      player.constraintVel = v();
+    });
+    if (pla.length < 2) {
+      this.playersBinded = false;
+      return;
+    }
+    for (let i = 0; i < pla.length - 1; i++)
+      this.constraintHandler.addConstraint({ bodyA: pla[i], bodyB: pla[i + 1] });
+    this.playersBinded = true;
+  }
+
+  resetBoundPlayers(reason = "tether-reset") {
+    if (!this.playersBinded || this._resettingTether) return;
+    this._resettingTether = true;
+    const active = this.players
       .filter((p) => !p.observer && !p.unloading)
       .slice()
-      .sort((a, b) => String(a.body.id).localeCompare(String(b.body.id)));
-    if (pla.length < 2) return;
-    for (let i = 0; i < pla.length - 1; i++) {
-      const a = pla[i],
-        b = pla[i + 1];
-      this.constraintHandler.addConstraint({ bodyA: a, bodyB: b });
-      this.constraintHandler.addConstraint({ bodyA: b, bodyB: a });
-    }
-    this.playersBinded = true;
+      .sort((a, b) => (a.tetherIndex ?? 0) - (b.tetherIndex ?? 0));
+    active.forEach((player, index) => {
+      player.constraintVel = v();
+      player.restart(index);
+      Matter.Body.setVelocity(player.body, v(0, 0));
+    });
+    this.constraints.forEach((link) => {
+      link.distance = 0;
+      link.force = 0;
+      link.taut = false;
+    });
+    this.lastTetherResetReason = reason;
+    this._resettingTether = false;
   }
 }
