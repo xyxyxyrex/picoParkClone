@@ -131,3 +131,38 @@ test("mobile layout keeps the canvas and palette usable", async ({ page }) => {
   await page.locator('[data-type="key"]').click();
   await expect(page.locator("#inspectorTitle")).toHaveText("Key");
 });
+test("Level Boundary is a resizable editor object and survives the JSON blueprint", async ({
+  page,
+}) => {
+  await page.goto("/lvl");
+  await expect(page.locator('[data-type="boundary"]')).toBeVisible();
+  await page.locator('[data-type="boundary"]').click();
+  await expect(page.locator("#inspectorTitle")).toHaveText("Level boundary");
+  await expect(page.locator("#objectW")).toBeEnabled();
+  await expect(page.locator("#objectH")).toBeEnabled();
+  await page.locator("#objectW").fill("4");
+  await page.locator("#objectW").press("Tab");
+  await page.locator("#objectH").fill("2");
+  await page.locator("#objectH").press("Tab");
+  await clickCell(page, 3, 2);
+
+  const state = await page.evaluate(() => {
+    const level = parkStudio.snapshot().variants[2][0];
+    const boundary = level.objects.find(
+      (o) => o.type === "boundary" && o.x === 3 && o.y === 2,
+    );
+    const blueprint = ParkData.blueprint(level);
+    return {
+      boundary,
+      runtimeBoundary: blueprint.boundaries.find(
+        (b) => b.pos.x === 3 && b.pos.y === 2,
+      ),
+    };
+  });
+
+  expect(state.boundary).toMatchObject({ type: "boundary", w: 4, h: 2 });
+  expect(state.runtimeBoundary).toEqual({
+    pos: { x: 3, y: 2 },
+    size: { x: 4, y: 2 },
+  });
+});
