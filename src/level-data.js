@@ -30,7 +30,6 @@
         rotation: 0,
         ...extra,
       });
-    add("boundary", 0, height - 1, width, 1);
     add("terrain", 0, 14, width, 2);
     add("terrain", 0, 0, 1, 14);
     add("terrain", width - 1, 0, 1, 14);
@@ -199,21 +198,14 @@
           rotation: 0,
           ...extra,
         });
-    const authoredBoundaries = stage.boundaries || [];
-    if (authoredBoundaries.length) {
-      for (const boundary of authoredBoundaries)
-        add(
-          "boundary",
-          boundary.pos.x,
-          boundary.pos.y,
-          boundary.size.x,
-          boundary.size.y,
-        );
-    } else {
-      // Built-in templates predate explicit kill zones. Give editor users a
-      // visible, deterministic bottom reset line without changing old JSON.
-      add("boundary", 0, stage.height - 1, stage.width, 1);
-    }
+    for (const boundary of stage.boundaries || [])
+      add(
+        "boundary",
+        boundary.pos.x,
+        boundary.pos.y,
+        boundary.size.x,
+        boundary.size.y,
+      );
     for (let y = 0; y < stage.height; y++)
       for (let x = 0; x < stage.width;) {
         if (!stage.map[y][x]) {
