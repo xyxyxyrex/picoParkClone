@@ -1,4 +1,6 @@
 function startGame() {
+    const controlsHint=document.getElementById("controlsHint");
+    if(controlsHint) controlsHint.hidden=false;
     if(tinyParkMode()==='versus'){
         if(!window.versusSession) window.versusSession=new VersusSession();
         return;
@@ -18,6 +20,8 @@ function startGame() {
 function hideGame() {
     document.getElementById("menu").style.display = "";
     document.getElementById("c").style.display = "none";
+    const controlsHint=document.getElementById("controlsHint");
+    if(controlsHint) controlsHint.hidden=true;
 }
 
 function setRoomCode(c) {
