@@ -28,6 +28,7 @@ class ConstraintHandler {
     const playerB = link.bodyB;
     if (!this.isActive(playerA) || !this.isActive(playerB)) {
       link.taut = false;
+      link.force = 0;
       return;
     }
 
@@ -40,6 +41,7 @@ class ConstraintHandler {
 
     if (!Number.isFinite(distance) || distance >= link.teleportResetDistance) {
       link.taut = false;
+      link.force = 0;
       if (this.game.playersBinded && this.game.resetBoundPlayers) {
         this.game.resetBoundPlayers("tether-teleport");
         return "reset";
@@ -49,6 +51,7 @@ class ConstraintHandler {
 
     if (distance <= link.restLength || distance < 0.0001) {
       link.taut = false;
+      link.force = 0;
       return;
     }
 
