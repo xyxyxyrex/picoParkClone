@@ -204,12 +204,14 @@
                 : [389, 191];
           sprite(c, atlas, ...source, 161, 161, x + a, y + b, 1, 1);
         }
-    } else if (type === "door" || type === "gate") {
+    } else if (type === "door") {
       sprite(c, atlas, 111, 885, 402.5, 402.5, x, y, 2, 2);
-      if (type === "gate") {
-        c.fillStyle = "#493a3080";
-        c.fillRect(x + 0.3, y + 0.4, 1.4, 1.6);
-      }
+    } else if (type === "gate") {
+      for (let a = 0; a < w; a++)
+        for (let b = 0; b < h; b++) {
+          const source = b === 0 ? [126, 194] : [389, 191];
+          sprite(c, atlas, ...source, 161, 161, x + a, y + b, 1, 1);
+        }
     } else if (type === "key")
       sprite(c, atlas, 115, 514, 159, 215, x + 0.15, y + 0.03, 0.7, 0.94);
     else if (["grow", "shrink", "switch"].includes(type)) {
