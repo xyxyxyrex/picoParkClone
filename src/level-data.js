@@ -12,6 +12,7 @@
     "spawn",
     "gate",
     "switch",
+    "boundary",
   ];
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function template(round = 1, players = 1) {
@@ -29,6 +30,7 @@
         rotation: 0,
         ...extra,
       });
+    add("boundary", 0, height - 1, width, 1);
     add("terrain", 0, 14, width, 2);
     add("terrain", 0, 0, 1, 14);
     add("terrain", width - 1, 0, 1, 14);
@@ -120,7 +122,8 @@
       if (
         ["door", "gate"].includes(o.type)
           ? o.w !== 2 || o.h !== 2
-          : !["terrain", "block"].includes(o.type) && (o.w !== 1 || o.h !== 1)
+          : !["terrain", "block", "boundary"].includes(o.type) &&
+            (o.w !== 1 || o.h !== 1)
       )
         throw Error("Invalid object size.");
     }
@@ -196,6 +199,21 @@
           rotation: 0,
           ...extra,
         });
+    const authoredBoundaries = stage.boundaries || [];
+    if (authoredBoundaries.length) {
+      for (const boundary of authoredBoundaries)
+        add(
+          "boundary",
+          boundary.pos.x,
+          boundary.pos.y,
+          boundary.size.x,
+          boundary.size.y,
+        );
+    } else {
+      // Built-in templates predate explicit kill zones. Give editor users a
+      // visible, deterministic bottom reset line without changing old JSON.
+      add("boundary", 0, stage.height - 1, stage.width, 1);
+    }
     for (let y = 0; y < stage.height; y++)
       for (let x = 0; x < stage.width;) {
         if (!stage.map[y][x]) {
@@ -250,6 +268,7 @@
       blocks: [],
       lasers: [],
       jumppads: [],
+      boundaries: [],
       bindPlayers: level.linked,
       shields: level.shields,
       spawn: level.objects.find((o) => o.type === "spawn") || { x: 2, y: 2 },
@@ -265,6 +284,8 @@
           size: { x: o.w, y: o.h },
           minPlayers: o.pushers || 0,
         });
+      if (o.type === "boundary")
+        data.boundaries.push({ pos, size: { x: o.w, y: o.h } });
       if (["door", "gate"].includes(o.type))
         data.doors.push({
           id: o.id,
