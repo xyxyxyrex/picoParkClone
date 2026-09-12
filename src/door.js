@@ -34,6 +34,18 @@ class Door {
         this.setOpen = value=>{
             this.open=!!value;
             if(this.blockerBody){
+                // Player horizontal movement uses Matter.Query.collides(), which
+                // still sees bodies even when their collision mask is zero. An
+                // open gate therefore has to leave the physics composite entirely.
+                const levelComp=this.game?.levelHandler?.levelComp;
+                if(levelComp){
+                    const attached=Matter.Composite.allBodies(levelComp)
+                        .some(body=>body.id===this.blockerBody.id);
+                    if(this.open && attached)
+                        Matter.Composite.remove(levelComp,this.blockerBody);
+                    else if(!this.open && !attached)
+                        Matter.Composite.add(levelComp,this.blockerBody);
+                }
                 this.blockerBody.collisionFilter.mask=this.open?0:4294967295;
                 this.blockerBody.render.visible=!this.open;
             }
