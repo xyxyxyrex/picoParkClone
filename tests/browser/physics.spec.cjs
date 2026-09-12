@@ -250,3 +250,73 @@ test("extreme tether separation resets the linked group instead of applying an e
   expect(state.force).toBe(0);
   expect(state.taut).toBe(false);
 });
+
+test("Level Boundary is non-solid and resets a player at the authored zone", async ({
+  page,
+}) => {
+  await page.goto("/test");
+  const state = await page.evaluate(() => {
+    const g = new Game();
+    g.renderer.levelBounds = { pos: v(-25, -25), size: v(600, 400) };
+    g.renderer.offset = v();
+    g.levelHandler.currentLevel = {
+      spawn: { x: 2, y: 2 },
+      cellsize: v(50, 50),
+      boundaries: [{ pos: v(4, 5), size: v(3, 1) }],
+    };
+    const p = g.playerhandler.addPlayer({});
+    Matter.Body.setPosition(p.body, v(250, 250));
+    p.updatePlayerParts();
+    const collisionBeforeReset = p.testPlayerCollision();
+    const bodiesBefore = Matter.Composite.allBodies(g.matter.engine.world).length;
+    const touched = p.touchesLevelBoundary();
+    p.testFalling();
+    return {
+      touched,
+      collisionBeforeReset,
+      bodiesBefore,
+      bodiesAfter: Matter.Composite.allBodies(g.matter.engine.world).length,
+      pos: { ...p.body.position },
+      vel: { ...p.body.velocity },
+      reason: p.lastResetReason,
+    };
+  });
+
+  expect(state.touched).toBe(true);
+  expect(state.collisionBeforeReset).toBe(false);
+  expect(state.bodiesAfter).toBe(state.bodiesBefore);
+  expect(state.pos.x).toBe(100);
+  expect(state.pos.y).toBe(100);
+  expect(state.vel.x).toBe(0);
+  expect(state.vel.y).toBe(0);
+  expect(state.reason).toBe("level-boundary");
+});
+
+test("a Level Boundary resets the entire tethered group", async ({ page }) => {
+  await page.goto("/test");
+  const state = await page.evaluate(() => {
+    const g = new Game();
+    g.renderer.levelBounds = { pos: v(-25, -25), size: v(600, 400) };
+    g.renderer.offset = v();
+    g.levelHandler.currentLevel = {
+      spawn: { x: 3, y: 3 },
+      cellsize: v(50, 50),
+      boundaries: [{ pos: v(7, 5), size: v(2, 1) }],
+    };
+    const a = g.playerhandler.addPlayer({});
+    const b = g.playerhandler.addPlayer({});
+    g.bindPlayers([a, b]);
+    Matter.Body.setPosition(a.body, v(350, 250));
+    Matter.Body.setPosition(b.body, v(200, 150));
+    a.testFalling();
+    return {
+      reason: g.lastTetherResetReason,
+      a: { ...a.body.position },
+      b: { ...b.body.position },
+    };
+  });
+
+  expect(state.reason).toBe("level-boundary");
+  expect(state.a).toEqual({ x: 150, y: 150 });
+  expect(state.b).toEqual({ x: 150, y: 100 });
+});
