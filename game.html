@@ -27,6 +27,13 @@
     <div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">0/5</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">0/5</b></span></div>
   </div>
 
+  <aside id="controlsHint" class="controls-hint" hidden aria-label="Movement controls">
+    <div class="controls-hint-title">CONTROLS</div>
+    <div class="controls-hint-row"><span>MOVE</span><span class="controls-keys"><kbd>A</kbd><kbd>D</kbd><small>or</small><kbd>←</kbd><kbd>→</kbd></span></div>
+    <div class="controls-hint-row"><span>JUMP</span><span class="controls-keys"><kbd>W</kbd><small>or</small><kbd>↑</kbd></span></div>
+    <div class="controls-hint-row"><span>ENTER</span><span class="controls-keys"><kbd>S</kbd><small>or</small><kbd>↓</kbd></span></div>
+  </aside>
+
   <div id="menu" class="game-menu-wrap">
     <main class="game-menu pixel-card pixel-stack">
       <div id="host" style="display:none">
@@ -169,6 +176,7 @@
 
     document.getElementById('addLocalPlayer').addEventListener('click',()=>{
       if(window.hostConnection&&hostConnection.mode==='versus') return showLobbyMessage('Local co-op slots are disabled in Versus mode so team balancing stays deterministic.',true);
+      if(window.setWasdAliasesEnabled) setWasdAliasesEnabled(false);
       mainGame.playerhandler.addPlayer({controls:['a','d','w','s'],keys:keys,color:mainGame.fetchColor(),username:'Local P2'});
       if(window.hostConnection) hostConnection.broadcastLobby();
     });
