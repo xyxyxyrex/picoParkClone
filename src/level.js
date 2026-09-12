@@ -49,7 +49,7 @@ class LevelHandler {
     }
     loadLevel(levelData,name) {
         const cellsize=v(50,50),levelMap=levelData.map;
-        this.currentLevel={data:levelMap,cellsize,name,campaign:!!levelData.campaign,spawn:levelData.spawn||null,spawnByTeam:levelData.spawnByTeam||null,stageMeta:levelData.stageMeta||null,teamCounts:levelData.teamCounts||null};
+        this.currentLevel={data:levelMap,cellsize,name,campaign:!!levelData.campaign,spawn:levelData.spawn||null,spawnByTeam:levelData.spawnByTeam||null,stageMeta:levelData.stageMeta||null,teamCounts:levelData.teamCounts||null,boundaries:levelData.boundaries||[]};
         this.game.buttons=levelData.buttons||[];
         const width=levelMap[0].length*cellsize.x,height=levelMap.length*cellsize.y;
         this.game.renderer.levelBounds={pos:v(-25,-25),size:v(width,height)};
