@@ -15,9 +15,30 @@ test("all 30 preserved templates validate and retain gate connections", () => {
       assert.deepEqual(rebuilt.map, source.map);
       assert.equal(rebuilt.keys.length, source.keys.length);
       assert.equal(rebuilt.doors.length, source.doors.length);
+      assert.ok(rebuilt.boundaries.length >= 1);
       for (const b of rebuilt.buttons)
         assert.ok(rebuilt.doors.some((d) => d.id === b.gateId));
     }
+});
+test("Level Boundary objects validate as resizable editor-only reset zones", () => {
+  const campaign = D.campaign(),
+    level = campaign.variants[2][0];
+  level.objects.push({
+    id: "custom-boundary",
+    type: "boundary",
+    x: 8,
+    y: 9,
+    w: 7,
+    h: 2,
+    rotation: 0,
+  });
+  D.validate(campaign);
+  const blueprint = D.blueprint(level);
+  assert.ok(
+    blueprint.boundaries.some(
+      (b) => b.pos.x === 8 && b.pos.y === 9 && b.size.x === 7 && b.size.y === 2,
+    ),
+  );
 });
 test("rejects invalid data, dimensions, duplicate IDs and dangling switches", () => {
   for (const change of [
