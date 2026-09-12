@@ -129,6 +129,9 @@ function parsePlayerData(player) {
     username: player.username || "Player",
     campaignStage: player.campaignStage || 1,
     observer: !!player.observer,
+    tetherIndex: Number.isInteger(player.tetherIndex)
+      ? player.tetherIndex
+      : null,
   };
 }
 
@@ -147,6 +150,7 @@ function setPlayerWithData(player, data, updatePhysics = true) {
   player.team = data.team || null;
   player.username = data.username || player.username || "Player";
   player.campaignStage = data.campaignStage || 1;
+  if (Number.isInteger(data.tetherIndex)) player.tetherIndex = data.tetherIndex;
   if (player.setObserver) player.setObserver(!!data.observer);
   player.setScale(data.scale || 1);
 }
