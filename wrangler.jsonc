@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tiny-park",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-09-08",
+  "d1_databases": [
+    {
+      "binding": "LEVELS_DB",
+      "database_name": "tiny-park-levels",
+      "database_id": "68a1faaf-81dd-481d-a5e9-3c3d74401f57",
+    },
+  ],
+}

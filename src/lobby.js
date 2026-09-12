@@ -14,6 +14,11 @@
 
   window.showLobbyMessage=function(message,isError=false){
     allId('lobbyMessage').forEach(el=>{el.textContent=message||'';el.className='pixel-status'+(isError?' error':'');});
+    if(isError && window.mainGame && mainGame.running){
+      let banner=document.getElementById('networkStatus');
+      if(!banner){banner=document.createElement('div');banner.id='networkStatus';banner.setAttribute('role','alert');banner.style.cssText='position:fixed;left:50%;top:75px;transform:translateX(-50%);z-index:90;max-width:90vw;padding:16px;background:#fff3cd;color:#49351c;border:2px solid #b78324;border-radius:8px;font:14px Arial';document.body.append(banner);}
+      banner.replaceChildren(document.createTextNode(message+' '));const link=document.createElement('a');link.href='./index.html';link.textContent='Return home';banner.append(link);
+    }
   };
 
   window.showMatchWinner=function(label){
@@ -40,8 +45,8 @@
     allId('team2Count').forEach(el=>el.textContent=`${counts.team2||0}/${cap}`);
     const progress=state.progress||{team1:1,team2:1},finished=state.finished||{};
     const p1=document.getElementById('score1'),p2=document.getElementById('score2');
-    if(p1)p1.textContent=finished.team1?'5/5':`${Math.min(5,progress.team1||1)}/5`;
-    if(p2)p2.textContent=finished.team2?'5/5':`${Math.min(5,progress.team2||1)}/5`;
+    if(p1)p1.textContent=finished.team1?'5/5':`${Math.max(0,(progress.team1||1)-1)}/5`;
+    if(p2)p2.textContent=finished.team2?'5/5':`${Math.max(0,(progress.team2||1)-1)}/5`;
     allId('team1Progress').forEach(el=>el.textContent=finished.team1?'FINISHED':`LEVEL ${progress.team1||1}`);
     allId('team2Progress').forEach(el=>el.textContent=finished.team2?'FINISHED':`LEVEL ${progress.team2||1}`);
     document.querySelectorAll('[data-role]').forEach(btn=>{

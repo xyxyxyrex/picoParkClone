@@ -2,7 +2,7 @@ class Renderer {
     constructor(game) {
         this.game = game
 
-        this.canvas = document.getElementById("c")
+        this.canvas = game.options.canvas || document.getElementById("c")
         this.ctx = this.canvas.getContext("2d")
 
         this.resizeCanvas()
@@ -21,7 +21,7 @@ class Renderer {
         this.border = 80
 
         this.debug = localfile
-        window.onresize = ()=>{this.resizeCanvas()}
+        window.addEventListener("resize", ()=>this.resizeCanvas())
     }
     async levelTransistion(nextLevel) {
         await this.setFade(1, 1000)
@@ -100,7 +100,7 @@ class Renderer {
         self.clearCanvas()
         self.renderBackground()
         self.ctx.save()
-        self.ctx.translate(((self.offset.x)*this.globalScale)+(window.innerWidth*0.5),((self.offset.y)*this.globalScale)+(window.innerHeight*0.5))
+        self.ctx.translate(((self.offset.x)*this.globalScale)+(this.canvas.width*0.5),((self.offset.y)*this.globalScale)+(this.canvas.height*0.5))
         self.ctx.scale(this.globalScale,this.globalScale)
         self.renderLevel(self.game.levelHandler)
         self.renderConstraints()
@@ -147,7 +147,7 @@ class Renderer {
         this.ctx.fillStyle = "#c47418"
         this.ctx.font = "30px squareforced"
         let measure = this.ctx.measureText(this.displayedTitle)
-        this.ctx.fillText(this.displayedTitle, (window.innerWidth/2)-(measure.width*0.5),window.innerHeight/2)
+        this.ctx.fillText(this.displayedTitle, (this.canvas.width/2)-(measure.width*0.5),this.canvas.height/2)
     }
 
     renderPlayer(player) {
@@ -216,12 +216,12 @@ class Renderer {
         }
     }
     renderBackground() {
-        var grad = this.ctx.createLinearGradient(window.innerWidth/2, 0, window.innerWidth/2, window.innerHeight)
+        var grad = this.ctx.createLinearGradient(this.canvas.width/2, 0, this.canvas.width/2, this.canvas.height)
         
         grad.addColorStop(1,"rgb(255,226,24)")
         grad.addColorStop(0,"rgb(255,176,23)")
         this.ctx.fillStyle = grad
-        this.ctx.fillRect(0,0,window.innerWidth,window.innerHeight)
+        this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height)
     }
     renderButtons() {
         var cellsize = this.game.levelHandler.currentLevel.cellsize
@@ -249,9 +249,7 @@ class Renderer {
             let pos = jp.pos,
                 cellsize = v(50,50)
             this.ctx.fillStyle = "#f50"
-            let heightDiff = (
-                Math.sin((((new Date()).getTime()+jp.id)/50))*25
-            )
+            let heightDiff = jp.rect.bounds.max.y-jp.rect.bounds.min.y-50
             this.ctx.fillRect(((pos.x-0.5)*cellsize.x),((pos.y-0.5)*cellsize.y)-heightDiff,cellsize.x,cellsize.y+heightDiff)
             
         }

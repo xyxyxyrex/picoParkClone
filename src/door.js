@@ -54,26 +54,17 @@ class Door {
             const fullyInside = rect.min.x<playerBody.min.x && rect.max.x>playerBody.max.x && rect.min.y<playerBody.min.y && (rect.max.y+5)>playerBody.max.y;
             if(!fullyInside) return;
 
+            if(this.game.options.team){
+                if(window.clientConnection || this.roundLocked || e.player.dead) return;
+                this.roundLocked=true;
+                const stage=this.campaignStage, revision=this.game.revision;
+                setTimeout(()=>{if(this.game.revision===revision)hostConnection.completeStage(this.team,stage);},220);
+                return;
+            }
             e.player.exitTimer -= e.player.game.deltaTime;
             if(!e.player.keys[e.player.controls[3]]) return;
             e.player.readyUp(this.trigger.rect.position);
             if(window.clientConnection) return;
-
-            if(window.hostConnection && hostConnection.mode==='versus' && this.campaignStage){
-                const team=e.player.team;
-                if((team!=='team1'&&team!=='team2')||this.roundLocked) return;
-                const teamPlayers=this.game.players.filter(p=>!p.observer&&!p.unloading&&p.team===team&&p.campaignStage===this.campaignStage);
-                const readyPlayers=teamPlayers.filter(p=>p.ready);
-                if(teamPlayers.length>0 && readyPlayers.length>=teamPlayers.length){
-                    this.roundLocked=true;
-                    setTimeout(()=>{
-                        this.roundLocked=false;
-                        teamPlayers.forEach(p=>p.ready=false);
-                        hostConnection.completeStage(team,this.campaignStage);
-                    },220);
-                }
-                return;
-            }
 
             const activePlayers=this.game.players.filter(p=>!p.observer&&!p.unloading);
             const playerReadyCount=activePlayers.filter(p=>p.ready).length;

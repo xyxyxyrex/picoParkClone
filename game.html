@@ -22,9 +22,9 @@
   <canvas id="c" style="display:none"></canvas>
 
   <div class="game-hud">
-    <div class="hud-box"><a href="./index.html">HOME</a> <span id="restartWrap">/ <a id="restartLevel" href="#">RESTART</a></span></div>
+    <div class="hud-box"><a href="./index.html">HOME</a> <span id="restartWrap" style="display:none">/ <a id="restartLevel" href="#">RESTART</a></span></div>
     <div class="hud-box"><span id="modeLabel">CLASSIC CO-OP</span></div>
-    <div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">1/5</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">1/5</b></span></div>
+    <div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">0/5</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">0/5</b></span></div>
   </div>
 
   <div id="menu" class="game-menu-wrap">
@@ -49,29 +49,29 @@
 
         <div data-versus-only style="display:none" class="pixel-stack">
           <div class="role-picker">
-            <button class="pixel-btn red" data-role="team1">Host → Team 1</button>
-            <button class="pixel-btn blue" data-role="team2">Host → Team 2</button>
-            <button class="pixel-btn secondary" data-role="observer">Host → Observe</button>
+            <button class="pixel-btn red" data-role="team1">Team 1</button>
+            <button class="pixel-btn blue" data-role="team2">Team 2</button>
+            <button class="pixel-btn secondary" data-role="observer">Observe</button>
           </div>
           <div class="member-board">
             <section class="team-column team1"><h3>Team 1 · <span id="team1Count">0/6</span></h3><div class="pixel-status" id="team1Progress">LEVEL 1</div><div id="team1Members"></div></section>
             <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0/6</span></h3><div class="pixel-status" id="team2Progress">LEVEL 1</div><div id="team2Members"></div></section>
             <section class="team-column observers"><h3>Observers</h3><div id="observerMembers"></div></section>
           </div>
-          <p class="pixel-status">Up to 6 players per team. The host starts as an observer and does not need to occupy a player slot. Teams must be equal before the five-level race starts.</p>
+          <p class="pixel-status">Equal teams. Up to 6 players each.</p>
         </div>
 
         <hr class="pixel-divider">
         <div class="pixel-row" style="justify-content:space-between">
-          <div id="lobbyMessage" class="pixel-status">Share the room code when everyone is ready.</div>
+          <div id="lobbyMessage" class="pixel-status">Share the code to invite friends.</div>
           <button id="startGameButton" class="pixel-btn green">Start Game</button>
         </div>
       </div>
 
       <div id="join" style="display:none" class="pixel-stack">
         <div>
-          <div class="pixel-kicker">Connected Lobby</div>
-          <h1 style="margin:6px 0 0">Choose Your Slot</h1>
+          <div class="pixel-kicker">ROOM LOBBY</div>
+          <h1 style="margin:6px 0 0">CHOOSE A TEAM</h1>
         </div>
 
         <div id="classicJoinBoard">
@@ -90,7 +90,7 @@
             <section class="team-column team2"><h3>Team 2 · <span id="team2Count">0/6</span></h3><div class="pixel-status" id="team2Progress">LEVEL 1</div><div id="team2Members"></div></section>
             <section class="team-column observers"><h3>Observers</h3><div id="observerMembers"></div></section>
           </div>
-          <p class="pixel-status">Balance rule: join the smaller team, or either team when tied. A team can never exceed 6 players.</p>
+          <p class="pixel-status">Join a team or watch the game.</p>
         </div>
         <div id="lobbyMessage" class="pixel-status">Waiting for room configuration...</div>
       </div>
@@ -104,7 +104,7 @@
   <script src="./src/blocks.js"></script>
   <script src="./src/lasers.js"></script>
   <script src="./src/jumppad.js"></script>
-  <script src="./src/campaignTemplates.js"></script>
+  <script src="./src/level-data.js"></script><script src="./src/campaignTemplates.js"></script>
   <script src="./src/levels.js"></script>
   <script src="./src/level.js"></script>
   <script src="./src/matterInit.js"></script>
@@ -121,6 +121,8 @@
   <script src="./src/constraints.js"></script>
   <script src="./src/host.js"></script>
   <script src="./src/client.js"></script>
+  <script src="./src/network-playback.js"></script>
+  <script src="./src/versus.js"></script>
   <script src="./src/menu.js"></script>
   <script src="./src/lobby.js"></script>
 
@@ -150,9 +152,9 @@
       if (!urlData.host&&!urlData.join) startGame();
 
       setInterval(()=>{
-        if(window.hostConnection) hostConnection.updateClients();
+        if(window.hostConnection && !mainGame.running) hostConnection.updateClients();
         if(window.clientConnection) clientConnection.updateHost();
-      },10);
+      },50);
       setInterval(()=>mainGame.players.forEach(p=>{if(!p.onlinePlayer&&!p.observer)p.updateKeys(keys);}),5);
     }
 
@@ -160,6 +162,7 @@
 
     document.getElementById('restartLevel').addEventListener('click',e=>{
       e.preventDefault();
+      if(window.versusSession){versusSession.restart();return;}
       if(mainGame&&mainGame.levelHandler.currentLevel.name) mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name);
     });
 
@@ -175,27 +178,27 @@
         if(counts.team1===0||counts.team2===0||counts.team1!==counts.team2) return showLobbyMessage(`Teams must be equal and non-zero. Team 1: ${counts.team1}/6, Team 2: ${counts.team2}/6.`,true);
         if(counts.team1>6||counts.team2>6) return showLobbyMessage('Maximum team size is 6.',true);
       }
+      if(window.hostConnection) { const ready=hostConnection.connections.filter(c=>c.role!=='observer'); if(ready.some(c=>!c.player)) return showLobbyMessage('Waiting for player connections to be ready.',true); }
       startGame();
       if(window.hostConnection){
-        hostConnection.broadcast(JSON.stringify({startGame:true}));
+        hostConnection.broadcast(JSON.stringify({campaign:window.parkCampaign||null,startGame:true}));
         setTimeout(()=>hostConnection.beginMatch(),80);
       }
     });
 
-    window.onload=()=>{
+    window.onload=async()=>{
       _loadFont('squareforced');
       if(urlData.host) document.getElementById('host').style.display='';
       else if(urlData.join) document.getElementById('join').style.display='';
+      try {
+        const response=await fetch('/api/levels');
+        if(response.ok && response.headers.get('content-type')?.includes('application/json')) {
+          const live=await response.json(); if(live.campaign) window.parkCampaign=ParkData.validate(live.campaign,true);
+        }
+      } catch { showLobbyMessage('Live levels unavailable. Using built-in campaign.'); }
       initGame();
 
-      const tempLevel=localStorage.getItem('tempLevel');
-      if(tempLevel!=null){
-        const levelString=`({${atob(tempLevel)}})`;
-        document.getElementById('title').textContent='temp-level';
-        levels.tempLevel=eval(levelString)['tempName'];
-        mainGame.runTemp=true;
-        localStorage.removeItem('tempLevel');
-      }
+
     };
 
     function setLevel(lvl){

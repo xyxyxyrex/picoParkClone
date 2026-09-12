@@ -19,8 +19,8 @@ class TriggerHandler {
         let coll = d.testCollision()
         
         if (coll.length>0) {
-            var playerBody = (coll[0].bodyB.player||coll[0].bodyB.isBlock)?coll[0].bodyB:coll[0].bodyA
-            d.onIn(playerBody)
+            const bodies = new Set(coll.map(c => (c.bodyB.player || c.bodyB.isBlock) ? c.bodyB : c.bodyA))
+            bodies.forEach(body => d.onIn(body))
             d.playerInside = true
         } else {
             d.playerInside = false

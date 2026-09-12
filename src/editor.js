@@ -1,313 +1,1000 @@
-const canvas=document.getElementById('myCanvas');
-const ctx=canvas.getContext('2d');
-const CELL=32;
-let width=20,height=10,zoom=1;
-let grid=[];
-let selected='1';
-let paintMode='paint';
-let mouseDown=false;
-let laserRotation=1;
-let undoStack=[];
-let redoStack=[];
-let lastPaintKey='';
-
-const tileNames={
-  '1':'Wall','0':'Erase','door':'Door','key':'Key','jumppad':'Jump Pad',
-  growingButton:'Grow Button',shrinkingButton:'Shrink Button',block:'Block',laser:'Laser'
-};
-const tileColors={
-  '1':'#55b86b','0':'#0b0d12',door:'#9b6834',key:'#e2bd42',jumppad:'#70ff51',
-  growingButton:'#ff5aa7',shrinkingButton:'#d64cff',block:'#9b532e',laser:'#ff4d4d'
-};
-const shortcuts={a:'1',z:'0',d:'door',k:'key',j:'jumppad',g:'growingButton',s:'shrinkingButton',b:'block',l:'laser'};
-
-function newGrid(w=width,h=height){
-  return Array.from({length:w},(_,x)=>Array.from({length:h},(_,y)=>y===h-1?'1':'0'));
-}
-function cloneGrid(g=grid){ return g.map(col=>[...col]); }
-function stateSnapshot(){
-  return {
-    width,height,grid:cloneGrid(),laserRotation,
-    playersBinded:document.getElementById('playersBinded').checked,
-    shields:['sT','sB','sL','sR'].map(id=>document.getElementById(id).checked),
-    block:{x:+document.getElementById('blockX').value||1,y:+document.getElementById('blockY').value||1,min:+document.getElementById('requiredPlayers').value||0}
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id),
+    D = ParkData,
+    canvas = $("editorCanvas"),
+    ctx = canvas.getContext("2d");
+  const catalog = {
+    terrain: ["Terrain", "Build platforms, walls, and a path to the finish."],
+    block: [
+      "Push block",
+      "A movable crate. Stack it, push it, and help your team climb.",
+    ],
+    door: [
+      "Exit door",
+      "Collect the keys, then gather every teammate here and press down.",
+    ],
+    key: ["Key", "Unlocks an exit when a player brings it close."],
+    jumppad: ["Jump pad", "Launch teammates into the air."],
+    grow: ["Grow button", "Stand here to grow."],
+    shrink: ["Shrink button", "Stand here to squeeze through smaller spaces."],
+    laser: ["Laser", "A dangerous beam. Rotate to change its direction."],
+    spawn: ["Team spawn", "Where teammates start and respawn. One per level."],
+    gate: ["Gate", "A barrier opened by connected pressure switches."],
+    switch: [
+      "Pressure switch",
+      "Link to a gate. Choose whether any or all connected switches must be held.",
+    ],
   };
-}
-function pushHistory(){
-  undoStack.push(stateSnapshot());
-  if(undoStack.length>60) undoStack.shift();
-  redoStack=[];
-  updateHistoryButtons();
-}
-function restoreState(s){
-  if(!s) return;
-  width=s.width;height=s.height;grid=s.grid.map(c=>[...c]);laserRotation=s.laserRotation||1;
-  document.getElementById('levelX').value=width;
-  document.getElementById('levelY').value=height;
-  document.getElementById('laserRotation').textContent=laserRotation;
-  document.getElementById('playersBinded').checked=!!s.playersBinded;
-  ['sT','sB','sL','sR'].forEach((id,i)=>document.getElementById(id).checked=!!(s.shields||[])[i]);
-  if(s.block){
-    document.getElementById('blockX').value=s.block.x||1;
-    document.getElementById('blockY').value=s.block.y||1;
-    document.getElementById('requiredPlayers').value=s.block.min||0;
+  const atlas = new Image(),
+    players = new Image(),
+    lasers = new Image();
+  atlas.src = "assets/imgs/levelAssets.png";
+  players.src = "assets/imgs/atlas.png";
+  lasers.src = "assets/imgs/laser.png";
+  let campaign = D.campaign(),
+    team = 2,
+    round = 0,
+    selected = null,
+    brush = { type: "terrain", w: 1, h: 1, rotation: 0 },
+    tool = "paint";
+  let camera = { x: 0, y: 0, scale: 24 },
+    space = false,
+    showGrid = true,
+    pointer = null,
+    gesture = null,
+    movePending = false,
+    undo = [],
+    redo = [],
+    toastTimer,
+    revision = null,
+    edited = false;
+  const level = () => campaign.variants[team][round];
+  try {
+    const saved = localStorage.getItem("park.studio.v1");
+    if (saved) campaign = D.validate(JSON.parse(saved));
+  } catch {
+    toast("Saved draft could not be read. Import a backup to recover it.");
   }
-  resizeCanvas();
-  draw();
-}
-function undo(){
-  if(!undoStack.length) return;
-  redoStack.push(stateSnapshot());
-  restoreState(undoStack.pop());
-  updateHistoryButtons();
-}
-function redo(){
-  if(!redoStack.length) return;
-  undoStack.push(stateSnapshot());
-  restoreState(redoStack.pop());
-  updateHistoryButtons();
-}
-function updateHistoryButtons(){
-  document.getElementById('undoBtn').disabled=!undoStack.length;
-  document.getElementById('redoBtn').disabled=!redoStack.length;
-}
-
-function resizeCanvas(){
-  canvas.width=width*CELL;
-  canvas.height=height*CELL;
-  canvas.style.width=`${width*CELL*zoom}px`;
-  canvas.style.height=`${height*CELL*zoom}px`;
-  canvas.style.transformOrigin='top left';
-}
-function setZoom(next){
-  zoom=Math.max(.5,Math.min(2,next));
-  resizeCanvas();
-  document.getElementById('zoomLabel').textContent=`${Math.round(zoom*100)}%`;
-  draw();
-}
-
-function parseTile(tile){
-  const [type,args='']=String(tile).split('|');
-  return {type,args};
-}
-function currentTile(){
-  if(selected==='block'){
-    const x=Math.max(1,+document.getElementById('blockX').value||1);
-    const y=Math.max(1,+document.getElementById('blockY').value||1);
-    const min=Math.max(0,+document.getElementById('requiredPlayers').value||0);
-    return `block|${x},${y},${min}`;
-  }
-  if(selected==='laser') return `laser|${laserRotation}`;
-  return selected;
-}
-function chooseTile(type){
-  selected=type;
-  document.querySelectorAll('[data-tile]').forEach(btn=>btn.classList.toggle('active',btn.dataset.tile===type));
-  document.getElementById('selectedTile').textContent=`Selected: ${tileNames[type]||type}`;
-}
-function setPaintMode(mode){
-  paintMode=mode;
-  document.getElementById('paintMode').classList.toggle('active',mode==='paint');
-  document.getElementById('fillMode').classList.toggle('active',mode==='fill');
-}
-function rotateLaser(){
-  laserRotation=(laserRotation%4)+1;
-  document.getElementById('laserRotation').textContent=laserRotation;
-  if(selected==='laser') document.getElementById('selectedTile').textContent=`Selected: Laser · Dir ${laserRotation}`;
-}
-
-function drawGridLines(){
-  ctx.strokeStyle='rgba(255,255,255,.12)';
-  ctx.lineWidth=1;
-  for(let x=0;x<=width;x++){ctx.beginPath();ctx.moveTo(x*CELL+.5,0);ctx.lineTo(x*CELL+.5,height*CELL);ctx.stroke();}
-  for(let y=0;y<=height;y++){ctx.beginPath();ctx.moveTo(0,y*CELL+.5);ctx.lineTo(width*CELL,y*CELL+.5);ctx.stroke();}
-}
-function drawTile(x,y,tile){
-  const {type,args}=parseTile(tile);
-  if(type==='0') return;
-  ctx.fillStyle=tileColors[type]||'#888';
-  let w=1,h=1;
-  if(type==='block'){
-    const parts=args.split(',').map(Number);w=parts[0]||1;h=parts[1]||1;
-  }
-  ctx.fillRect(x*CELL+2,y*CELL+2,w*CELL-4,h*CELL-4);
-  ctx.strokeStyle='#07080d';ctx.lineWidth=2;ctx.strokeRect(x*CELL+4,y*CELL+4,w*CELL-8,h*CELL-8);
-  ctx.fillStyle='#111';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
-  const labels={door:'D',key:'K',jumppad:'J',growingButton:'G+',shrinkingButton:'S-',block:'B',laser:'L'};
-  if(labels[type]) ctx.fillText(labels[type],x*CELL+(w*CELL/2),y*CELL+(h*CELL/2));
-  if(type==='block'){
-    const min=Number(args.split(',')[2]||0);
-    ctx.fillStyle='#fff';ctx.font='9px monospace';ctx.fillText(`${w}x${h} / ${min}P`,x*CELL+(w*CELL/2),y*CELL+(h*CELL/2)+11);
-  }
-  if(type==='laser'){
-    const dir=Number(args||1);
-    const angle=dir*Math.PI*.5;
-    const cx=x*CELL+CELL/2,cy=y*CELL+CELL/2;
-    ctx.strokeStyle='#ffb0b0';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(angle)*22,cy+Math.sin(angle)*22);ctx.stroke();
-  }
-}
-function draw(){
-  ctx.fillStyle='#0b0d12';ctx.fillRect(0,0,canvas.width,canvas.height);
-  for(let x=0;x<width;x++) for(let y=0;y<height;y++) drawTile(x,y,grid[x][y]);
-  drawGridLines();
-}
-
-function pointFromEvent(e){
-  const rect=canvas.getBoundingClientRect();
-  const x=Math.floor((e.clientX-rect.left)/(CELL*zoom));
-  const y=Math.floor((e.clientY-rect.top)/(CELL*zoom));
-  return {x,y,valid:x>=0&&x<width&&y>=0&&y<height};
-}
-function paintAt(x,y,tile=currentTile(),record=true){
-  if(x<0||x>=width||y<0||y>=height) return;
-  const key=`${x},${y},${tile}`;
-  if(lastPaintKey===key) return;
-  if(record) pushHistory();
-  grid[x][y]=tile;
-  lastPaintKey=key;
-  draw();
-}
-function floodFill(x,y,replacement){
-  if(x<0||x>=width||y<0||y>=height) return;
-  const target=grid[x][y];
-  if(target===replacement) return;
-  pushHistory();
-  const q=[[x,y]],seen=new Set();
-  while(q.length){
-    const [cx,cy]=q.pop(),k=`${cx},${cy}`;
-    if(seen.has(k)||cx<0||cy<0||cx>=width||cy>=height||grid[cx][cy]!==target) continue;
-    seen.add(k);grid[cx][cy]=replacement;
-    q.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
-  }
-  draw();
-}
-
-function applyResize(){
-  const nw=Math.max(5,Math.min(80,+document.getElementById('levelX').value||width));
-  const nh=Math.max(5,Math.min(50,+document.getElementById('levelY').value||height));
-  if(nw===width&&nh===height) return;
-  pushHistory();
-  const next=Array.from({length:nw},()=>Array.from({length:nh},()=> '0'));
-  for(let x=0;x<Math.min(width,nw);x++) for(let y=0;y<Math.min(height,nh);y++) next[x][y]=grid[x][y];
-  width=nw;height=nh;grid=next;resizeCanvas();draw();toast('Canvas resized. Existing cells were preserved.');
-}
-function clearLevel(){
-  pushHistory();grid=Array.from({length:width},()=>Array.from({length:height},()=> '0'));draw();
-}
-function addFloor(){
-  pushHistory();for(let x=0;x<width;x++) grid[x][height-1]='1';draw();
-}
-
-function projectData(){ return {...stateSnapshot(),version:2,name:'Tiny Park Custom Level'}; }
-function saveDraft(){ localStorage.setItem('tinyParkEditorDraft',JSON.stringify(projectData()));toast('Draft saved locally.'); }
-function loadDraft(){
-  const raw=localStorage.getItem('tinyParkEditorDraft');
-  if(!raw) return toast('No saved draft found.',true);
-  pushHistory();restoreState(JSON.parse(raw));toast('Draft loaded.');
-}
-function exportProject(){
-  const blob=new Blob([JSON.stringify(projectData(),null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tiny-park-level.json';a.click();URL.revokeObjectURL(a.href);
-}
-function importProjectFile(file){
-  const reader=new FileReader();
-  reader.onload=()=>{
-    try{const data=JSON.parse(reader.result);pushHistory();restoreState(data);toast('Project imported.');}
-    catch(err){toast('Invalid level JSON.',true);}
-  };
-  reader.readAsText(file);
-}
-
-function convert(){
-  const map=[];const keys=[],doors=[],blocks=[],gButtons=[],sButtons=[],lasers=[],jumppads=[];
-  for(let r=0;r<height;r++){
-    map[r]=[];
-    for(let t=0;t<width;t++){
-      const tile=parseTile(grid[t][r]);
-      map[r][t]=tile.type==='1'?1:0;
-      switch(tile.type){
-        case 'door':doors.push({x:t+1,y:r+2});break;
-        case 'jumppad':jumppads.push({x:t,y:r+2});break;
-        case 'key':keys.push({x:t,y:r});break;
-        case 'growingButton':gButtons.push({x:t,y:r});break;
-        case 'shrinkingButton':sButtons.push({x:t,y:r});break;
-        case 'block':{
-          const [x,y,min]=tile.args.split(',').map(Number);
-          blocks.push({x:t,y:r,w:x||1,h:y||1,min:min||0});break;
-        }
-        case 'laser':lasers.push({x:t,y:r,angle:Number(tile.args)||1});break;
-      }
+  const hadDraft =
+    !!localStorage.getItem("park.studio.v1") ||
+    !!localStorage.getItem("tinyParkEditorDraft");
+  if (
+    !localStorage.getItem("park.studio.v1") &&
+    localStorage.getItem("tinyParkEditorDraft")
+  ) {
+    try {
+      campaign.variants[team][round] = D.legacyLevel(
+        JSON.parse(localStorage.getItem("tinyParkEditorDraft")),
+      );
+      save();
+      toast("Your previous draft was recovered into Round 1, 2 per team.");
+    } catch {
+      toast(
+        "Previous draft could not be migrated. It remains stored on this device.",
+      );
     }
   }
-  const mapString=map.map(row=>`[${row.join(',')}]`).join(',');
-  const jp=jumppads.map(k=>`v(${k.x},${k.y}),`).join('');
-  const keyString=keys.map(k=>`v(${k.x},${k.y}),`).join('');
-  const doorString=doors.map(k=>`new Door(v(${k.x},${k.y}),{nextLevel:"tempLevel"}),`).join('');
-  const blockString=blocks.map(k=>`{pos:v(${k.x},${k.y}),size:v(${k.w},${k.h}),minPlayers:${k.min}},`).join('');
-  const growString=gButtons.map(k=>`new Button(v(${k.x},${k.y}),{onPlayer:(e)=>{e.player.setScale(Math.min(Math.max(e.player.scale+0.0075,0.5),2))}}),`).join('');
-  const shrinkString=sButtons.map(k=>`new Button(v(${k.x},${k.y}),{onPlayer:(e)=>{e.player.setScale(Math.min(Math.max(e.player.scale-0.0075,0.5),2))}}),`).join('');
-  const laserString=lasers.map(k=>`{pos:v(${k.x},${k.y}),angle:${k.angle}},`).join('');
-  const shields=[];
-  if(document.getElementById('sT').checked) shields.push(3);
-  if(document.getElementById('sB').checked) shields.push(1);
-  if(document.getElementById('sL').checked) shields.push(2);
-  if(document.getElementById('sR').checked) shields.push(4);
-  const template=`"tempName":{jumppads:[${jp}],playersHaveShields:[${shields.join(',')}],playersBinded:${document.getElementById('playersBinded').checked},map:[${mapString}],lasers:[${laserString}],buttons:[${growString}${shrinkString}],keys:[${keyString}],blocks:[${blockString}],doors:[${doorString}]},`;
-  const encoded=btoa(template);
-  document.getElementById('convert').value=encoded;
-  return template;
-}
-function playTest(){ const level=convert();localStorage.setItem('tempLevel',btoa(level));window.open('./game.html?host=true','_blank'); }
-async function copyData(){ if(!document.getElementById('convert').value) convert();await navigator.clipboard.writeText(document.getElementById('convert').value);toast('Game data copied.'); }
-function toast(msg,error=false){
-  const el=document.getElementById('editorToast');el.textContent=msg;el.style.borderColor=error?'#ff5c5c':'#ffd84a';el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),1800);
-}
+  function toast(message) {
+    $("toast").textContent = message;
+    $("toast").hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => ($("toast").hidden = true), 4500);
+  }
+  function save() {
+    edited = true;
+    try {
+      localStorage.setItem("park.studio.v1", JSON.stringify(campaign));
+      $("saveState").textContent = "Saved";
+    } catch {
+      $("saveState").textContent = "Draft not saved — export a backup";
+    }
+  }
+  function checkpoint() {
+    undo.push({ team, round, data: D.clone(campaign) });
+    if (undo.length > 80) undo.shift();
+    redo = [];
+  }
+  function changed() {
+    save();
+    sync();
+    draw();
+  }
+  function mutate(fn) {
+    const before = D.clone(campaign);
+    checkpoint();
+    try {
+      fn();
+      D.validate(campaign);
+      changed();
+    } catch (e) {
+      campaign = before;
+      undo.pop();
+      toast(e.message);
+      sync();
+      draw();
+    }
+  }
+  function history(from, to) {
+    if (!from.length) return;
+    to.push({ team, round, data: D.clone(campaign) });
+    const state = from.pop();
+    campaign = state.data;
+    team = state.team;
+    round = state.round;
+    selected = null;
+    hideMenu();
+    changed();
+    fit();
+  }
+  function sync() {
+    const l = level(),
+      object = l.objects.find((o) => o.id === selected) || brush;
+    $("levelName").value = l.name;
+    $("levelW").value = l.width;
+    $("levelH").value = l.height;
+    $("linked").checked = l.linked;
+    $("teamSize").value = team;
+    document
+      .querySelectorAll(".shields input")
+      .forEach((e) => (e.checked = l.shields.includes(+e.value)));
+    $("roundLabel").textContent = `ROUND ${String(round + 1).padStart(2, "0")}`;
+    $("canvasBadge").textContent =
+      `ROUND ${String(round + 1).padStart(2, "0")} · ${team} PER TEAM`;
+    $("inspectorTitle").textContent = catalog[object.type][0];
+    $("objectDescription").textContent = catalog[object.type][1];
+    $("objectW").value = object.w;
+    $("objectH").value = object.h;
+    $("objectW").disabled = $("objectH").disabled = ![
+      "terrain",
+      "block",
+    ].includes(object.type);
+    $("switchFields").hidden = object.type !== "switch";
+    $("gateSelect").replaceChildren();
+    l.objects
+      .filter((o) => o.type === "gate")
+      .forEach((g, i) => {
+        const opt = document.createElement("option");
+        opt.value = g.id;
+        opt.textContent = `Gate ${i + 1} · ${g.x}, ${g.y}`;
+        $("gateSelect").append(opt);
+      });
+    $("gateSelect").value = object.gateId || "";
+    $("switchMode").value = object.mode || "any";
+    $("sizeHint").textContent = selected
+      ? "Changes save automatically."
+      : "R to rotate.";
+    document.querySelectorAll("[data-tool]").forEach((b) => {
+      b.classList.toggle("active", b.dataset.tool === tool);
+      b.setAttribute("aria-pressed", b.dataset.tool === tool);
+    });
+    document.querySelectorAll(".tile").forEach((b) => {
+      b.classList.toggle("active", b.dataset.type === brush.type);
+      b.setAttribute("aria-pressed", b.dataset.type === brush.type);
+    });
+    document.querySelectorAll("[data-round]").forEach((b) => {
+      b.classList.toggle("active", +b.dataset.round === round);
+      b.setAttribute(
+        "aria-current",
+        +b.dataset.round === round ? "step" : "false",
+      );
+    });
+    const warnings = D.warnings(l);
+    $("validation").textContent = warnings.length
+      ? warnings.join(" ")
+      : "Ready to test.";
+    $("validation").classList.toggle("warning", !!warnings.length);
+    $("undo").disabled = !undo.length;
+    $("redo").disabled = !redo.length;
+  }
+  function sprite(c, image, sx, sy, sw, sh, x, y, w, h) {
+    if (image.complete && image.naturalWidth)
+      c.drawImage(image, sx, sy, sw, sh, x, y, w, h);
+  }
+  function drawObject(c, o, terrain = null) {
+    const { x, y, w, h, type } = o;
+    if (type === "terrain" || type === "block") {
+      for (let a = 0; a < w; a++)
+        for (let b = 0; b < h; b++) {
+          const source =
+            type === "block"
+              ? [655, 196]
+              : (terrain ? !terrain.has(`${x + a},${y + b - 1}`) : b === 0)
+                ? [126, 194]
+                : [389, 191];
+          sprite(c, atlas, ...source, 161, 161, x + a, y + b, 1, 1);
+        }
+    } else if (type === "door" || type === "gate") {
+      sprite(c, atlas, 111, 885, 402.5, 402.5, x, y, 2, 2);
+      if (type === "gate") {
+        c.fillStyle = "#493a3080";
+        c.fillRect(x + 0.3, y + 0.4, 1.4, 1.6);
+      }
+    } else if (type === "key")
+      sprite(c, atlas, 115, 514, 159, 215, x + 0.15, y + 0.03, 0.7, 0.94);
+    else if (["grow", "shrink", "switch"].includes(type)) {
+      sprite(c, atlas, 389, 535, 161, 161, x, y, 1, 1);
+      c.fillStyle = "#604730";
+      c.font = ".4px Arial";
+      c.textAlign = "center";
+      c.fillText(
+        type === "grow" ? "+" : type === "shrink" ? "−" : "•",
+        x + 0.5,
+        y + 0.45,
+      );
+    } else if (type === "jumppad") {
+      c.fillStyle = "#ff5500";
+      c.fillRect(x, y + 0.15, 1, 0.85);
+      c.fillStyle = "#ffe291";
+      c.font = ".5px Arial";
+      c.textAlign = "center";
+      c.fillText("↑", x + 0.5, y + 0.76);
+    } else if (type === "spawn") {
+      sprite(c, players, 34, 56, 42, 46, x + 0.08, y, 0.84, 1);
+      c.strokeStyle = "#496b45";
+      c.lineWidth = 0.05;
+      c.setLineDash([0.12, 0.08]);
+      c.strokeRect(x - 0.05, y - 0.05, 1.1, 1.1);
+      c.setLineDash([]);
+    } else if (type === "laser") {
+      c.save();
+      c.translate(x + 0.5, y + 0.5);
+      c.rotate((o.rotation * Math.PI) / 2);
+      sprite(c, lasers, 0, 4, 36, 92, -0.25, -0.46, 0.36, 0.92);
+      sprite(c, lasers, 57, 0, 100, 100, 0.08, -0.22, 0.85, 0.44);
+      c.restore();
+    }
+  }
+  function draw() {
+    const ratio = devicePixelRatio || 1,
+      rect = canvas.getBoundingClientRect();
+    if (
+      canvas.width !== Math.round(rect.width * ratio) ||
+      canvas.height !== Math.round(rect.height * ratio)
+    ) {
+      canvas.width = Math.round(rect.width * ratio);
+      canvas.height = Math.round(rect.height * ratio);
+    }
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.imageSmoothingEnabled = false;
 
-canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('mousedown',e=>{
-  const p=pointFromEvent(e);if(!p.valid)return;
-  mouseDown=true;lastPaintKey='';
-  const tile=e.button===2?'0':currentTile();
-  if(paintMode==='fill'||e.shiftKey) floodFill(p.x,p.y,tile); else paintAt(p.x,p.y,tile,true);
-});
-canvas.addEventListener('mousemove',e=>{
-  const p=pointFromEvent(e);document.getElementById('cursorPos').textContent=p.valid?`X: ${p.x} / Y: ${p.y}`:'X: -- / Y: --';
-  if(mouseDown&&p.valid&&paintMode==='paint') paintAt(p.x,p.y,e.buttons===2?'0':currentTile(),false);
-});
-window.addEventListener('mouseup',()=>{mouseDown=false;lastPaintKey='';});
-
-window.addEventListener('keydown',e=>{
-  const tag=(e.target.tagName||'').toLowerCase();
-  if(tag==='input'||tag==='textarea') return;
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();return undo();}
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();return redo();}
-  const k=e.key.toLowerCase();
-  if(shortcuts[k]) chooseTile(shortcuts[k]);
-  if(k==='r') rotateLaser();
-  if(k==='p') setPaintMode('paint');
-  if(k==='f') setPaintMode('fill');
-  if(k==='+'||k==='=') setZoom(zoom+.25);
-  if(k==='-') setZoom(zoom-.25);
-});
-
-document.querySelectorAll('[data-tile]').forEach(btn=>btn.addEventListener('click',()=>chooseTile(btn.dataset.tile)));
-document.getElementById('paintMode').onclick=()=>setPaintMode('paint');
-document.getElementById('fillMode').onclick=()=>setPaintMode('fill');
-document.getElementById('rotateLaser').onclick=rotateLaser;
-document.getElementById('resizeBtn').onclick=applyResize;
-document.getElementById('undoBtn').onclick=undo;
-document.getElementById('redoBtn').onclick=redo;
-document.getElementById('clearBtn').onclick=clearLevel;
-document.getElementById('floorBtn').onclick=addFloor;
-document.getElementById('saveDraft').onclick=saveDraft;
-document.getElementById('loadDraft').onclick=loadDraft;
-document.getElementById('zoomIn').onclick=()=>setZoom(zoom+.25);
-document.getElementById('zoomOut').onclick=()=>setZoom(zoom-.25);
-document.getElementById('exportProject').onclick=exportProject;
-document.getElementById('importProject').onclick=()=>document.getElementById('importFile').click();
-document.getElementById('importFile').addEventListener('change',e=>{if(e.target.files[0])importProjectFile(e.target.files[0]);e.target.value='';});
-document.getElementById('generateData').onclick=()=>{convert();toast('Game data generated.');};
-document.getElementById('copyData').onclick=copyData;
-document.getElementById('playTest').onclick=playTest;
-
-width=20;height=10;grid=newGrid();resizeCanvas();draw();updateHistoryButtons();chooseTile('1');
+    ctx.translate(camera.x, camera.y);
+    ctx.scale(camera.scale, camera.scale);
+    const l = level(),
+      gradient = ctx.createLinearGradient(0, 0, 0, l.height);
+    gradient.addColorStop(0, "#ffb017");
+    gradient.addColorStop(1, "#ffe218");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, l.width, l.height);
+    const terrain = new Set();
+    for (const o of l.objects.filter((o) => o.type === "terrain"))
+      for (let y = o.y; y < o.y + o.h; y++)
+        for (let x = o.x; x < o.x + o.w; x++) terrain.add(`${x},${y}`);
+    for (const o of l.objects) drawObject(ctx, o, terrain);
+    const active = l.objects.find((o) => o.id === selected);
+    if (active?.type === "switch") {
+      const gate = l.objects.find((o) => o.id === active.gateId);
+      if (gate) {
+        ctx.strokeStyle = "#496b45";
+        ctx.lineWidth = 2 / camera.scale;
+        ctx.setLineDash([0.2, 0.15]);
+        ctx.beginPath();
+        ctx.moveTo(active.x + 0.5, active.y + 0.5);
+        ctx.lineTo(gate.x + 1, gate.y + 1);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    if (showGrid && camera.scale > 9) {
+      ctx.strokeStyle = "#70532220";
+      ctx.lineWidth = 1 / camera.scale;
+      ctx.beginPath();
+      for (let x = 0; x <= l.width; x++) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, l.height);
+      }
+      for (let y = 0; y <= l.height; y++) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(l.width, y);
+      }
+      ctx.stroke();
+    }
+    const sel = l.objects.find((o) => o.id === selected);
+    if (sel) {
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3 / camera.scale;
+      ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+      ctx.strokeStyle = "#496b45";
+      ctx.lineWidth = 1 / camera.scale;
+      ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+    }
+    if (pointer && tool === "paint" && !gesture && !space && !hit(pointer)) {
+      const ghost = { ...brush, ...pointer };
+      ctx.globalAlpha = 0.45;
+      drawObject(ctx, ghost);
+      ctx.globalAlpha = 1;
+    }
+    $("zoomLabel").textContent = Math.round((camera.scale / 32) * 100) + "%";
+    canvas.style.cursor =
+      space || tool === "pan"
+        ? "grab"
+        : movePending
+          ? "move"
+          : tool === "erase"
+            ? "crosshair"
+            : tool === "select"
+              ? "default"
+              : "crosshair";
+  }
+  function fit() {
+    const r = canvas.getBoundingClientRect();
+    camera.scale = Math.max(
+      5,
+      Math.min(
+        (r.width - 55) / level().width,
+        (r.height - 140) / level().height,
+        40,
+      ),
+    );
+    camera.x = (r.width - level().width * camera.scale) / 2;
+    camera.y = (r.height - level().height * camera.scale) / 2 + 10;
+    draw();
+  }
+  function zoom(
+    factor,
+    x = canvas.clientWidth / 2,
+    y = canvas.clientHeight / 2,
+  ) {
+    const old = camera.scale;
+    camera.scale = Math.max(5, Math.min(96, old * factor));
+    camera.x = x - ((x - camera.x) * camera.scale) / old;
+    camera.y = y - ((y - camera.y) * camera.scale) / old;
+    hideMenu();
+    draw();
+  }
+  function position(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: Math.floor((e.clientX - r.left - camera.x) / camera.scale),
+      y: Math.floor((e.clientY - r.top - camera.y) / camera.scale),
+    };
+  }
+  function hit(p) {
+    return [...level().objects]
+      .reverse()
+      .find(
+        (o) => p.x >= o.x && p.x < o.x + o.w && p.y >= o.y && p.y < o.y + o.h,
+      );
+  }
+  function inside(o) {
+    return (
+      o.x >= 0 &&
+      o.y >= 0 &&
+      o.x + o.w <= level().width &&
+      o.y + o.h <= level().height
+    );
+  }
+  function hideMenu() {
+    $("objectMenu").hidden = true;
+  }
+  function menu(o, e) {
+    selected = o.id;
+    sync();
+    const r = canvas.getBoundingClientRect();
+    $("objectTitle").textContent = `${catalog[o.type][0]} · ${o.w} × ${o.h}`;
+    $("objectMenu").hidden = false;
+    const m = $("objectMenu");
+    m.style.left =
+      Math.max(
+        5,
+        Math.min(e.clientX - r.left + 10, r.width - m.offsetWidth - 8),
+      ) + "px";
+    m.style.top =
+      Math.max(
+        65,
+        Math.min(e.clientY - r.top + 10, r.height - m.offsetHeight - 50),
+      ) + "px";
+    draw();
+  }
+  function paint(p) {
+    const o = { ...brush, ...p, id: crypto.randomUUID() };
+    if (!inside(o) || hit(p)) return;
+    if (
+      ["spawn", "door"].includes(o.type) &&
+      level().objects.some((x) => x.type === o.type)
+    ) {
+      toast(`Move the existing ${catalog[o.type][0].toLowerCase()} instead.`);
+      return;
+    }
+    level().objects.push(o);
+  }
+  function fillArea(start) {
+    if (hit(start) || !inside({ ...start, w: 1, h: 1 })) {
+      toast("Click an empty enclosed area to fill with terrain.");
+      return;
+    }
+    mutate(() => {
+      const occupied = new Set();
+      for (const o of level().objects)
+        for (let y = o.y; y < o.y + o.h; y++)
+          for (let x = o.x; x < o.x + o.w; x++) occupied.add(`${x},${y}`);
+      const visited = new Set(),
+        pending = [start];
+      while (pending.length) {
+        const p = pending.pop(),
+          key = `${p.x},${p.y}`;
+        if (
+          visited.has(key) ||
+          occupied.has(key) ||
+          !inside({ ...p, w: 1, h: 1 })
+        )
+          continue;
+        visited.add(key);
+        pending.push(
+          { x: p.x + 1, y: p.y },
+          { x: p.x - 1, y: p.y },
+          { x: p.x, y: p.y + 1 },
+          { x: p.x, y: p.y - 1 },
+        );
+      }
+      for (let y = 0; y < level().height; y++)
+        for (let x = 0; x < level().width;) {
+          if (!visited.has(`${x},${y}`)) {
+            x++;
+            continue;
+          }
+          const start = x;
+          while (visited.has(`${x},${y}`)) x++;
+          level().objects.push({
+            id: crypto.randomUUID(),
+            type: "terrain",
+            x: start,
+            y,
+            w: x - start,
+            h: 1,
+            rotation: 0,
+          });
+        }
+    });
+  }
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.button > 1) return;
+    canvas.focus();
+    canvas.setPointerCapture(e.pointerId);
+    pointer = position(e);
+    hideMenu();
+    if (space || e.button === 1 || tool === "pan") {
+      gesture = { mode: "pan", x: e.clientX, y: e.clientY };
+      return;
+    }
+    const found = hit(pointer);
+    if (tool === "fill" || (e.shiftKey && tool === "paint")) {
+      fillArea(pointer);
+      return;
+    }
+    if (movePending && selected) {
+      const o = level().objects.find((x) => x.id === selected);
+      if (o)
+        mutate(() => {
+          o.x = pointer.x;
+          o.y = pointer.y;
+        });
+      movePending = false;
+      return;
+    }
+    if (tool !== "erase" && found) {
+      menu(found, e);
+      return;
+    }
+    if (tool === "select") {
+      selected = null;
+      sync();
+      draw();
+      return;
+    }
+    checkpoint();
+    gesture = { mode: tool, before: JSON.stringify(level()), last: pointer };
+    if (tool === "erase" && found)
+      level().objects = level().objects.filter(
+        (o) => o.id !== found.id && o.gateId !== found.id,
+      );
+    else if (tool === "paint") paint(pointer);
+    draw();
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    pointer = position(e);
+    $("coordinates").textContent =
+      `X ${pointer.x} : Y ${pointer.y} · ${level().width} × ${level().height}`;
+    if (gesture?.mode === "pan") {
+      camera.x += e.clientX - gesture.x;
+      camera.y += e.clientY - gesture.y;
+      gesture.x = e.clientX;
+      gesture.y = e.clientY;
+    } else if (gesture) {
+      // Edge panning keeps placement usable on levels larger than the viewport.
+      const r = canvas.getBoundingClientRect();
+      if (e.clientX < r.left + 25) camera.x += 8;
+      if (e.clientX > r.right - 25) camera.x -= 8;
+      if (e.clientY < r.top + 25) camera.y += 8;
+      if (e.clientY > r.bottom - 25) camera.y -= 8;
+      pointer = position(e);
+      const start = gesture.last,
+        steps = Math.max(
+          Math.abs(pointer.x - start.x),
+          Math.abs(pointer.y - start.y),
+          1,
+        );
+      for (let i = 1; i <= steps; i++) {
+        const p = {
+          x: Math.round(start.x + ((pointer.x - start.x) * i) / steps),
+          y: Math.round(start.y + ((pointer.y - start.y) * i) / steps),
+        };
+        if (gesture.mode === "paint") paint(p);
+        else {
+          const o = hit(p);
+          if (o)
+            level().objects = level().objects.filter(
+              (x) => x.id !== o.id && x.gateId !== o.id,
+            );
+        }
+      }
+      gesture.last = pointer;
+    }
+    draw();
+  });
+  function endGesture() {
+    if (gesture && gesture.mode !== "pan") {
+      if (gesture.before === JSON.stringify(level())) undo.pop();
+      else {
+        try {
+          D.validate(campaign);
+          save();
+        } catch (e) {
+          const previous = undo.pop();
+          if (previous) campaign = previous.data;
+          toast(e.message);
+        }
+      }
+    }
+    gesture = null;
+    sync();
+    draw();
+  }
+  canvas.addEventListener("pointerup", endGesture);
+  canvas.addEventListener("pointercancel", endGesture);
+  canvas.addEventListener("lostpointercapture", () => {
+    if (gesture) endGesture();
+  });
+  canvas.addEventListener("pointerleave", () => {
+    if (!gesture) {
+      pointer = null;
+      draw();
+    }
+  });
+  canvas.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const r = canvas.getBoundingClientRect();
+      if (e.ctrlKey || e.metaKey)
+        zoom(
+          Math.exp(-e.deltaY * 0.002),
+          e.clientX - r.left,
+          e.clientY - r.top,
+        );
+      else {
+        camera.x -= e.deltaX;
+        camera.y -= e.deltaY;
+        hideMenu();
+        draw();
+      }
+    },
+    { passive: false },
+  );
+  canvas.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    const o = hit(position(e));
+    if (o) menu(o, e);
+  });
+  function action(name) {
+    const o = level().objects.find((x) => x.id === selected);
+    if (!o) return;
+    hideMenu();
+    if (name === "move") {
+      movePending = true;
+      toast("Click a grid cell to move the block. Escape cancels.");
+      draw();
+      return;
+    }
+    if (name === "duplicate") {
+      if (["spawn", "door"].includes(o.type)) {
+        toast("Each level has one spawn and one exit.");
+        return;
+      }
+      brush = { ...D.clone(o) };
+      selected = null;
+      tool = "paint";
+      toast("Click an empty cell to place a copy.");
+      sync();
+      draw();
+      return;
+    }
+    mutate(() => {
+      if (name === "delete") {
+        level().objects = level().objects.filter(
+          (x) => x.id !== selected && x.gateId !== selected,
+        );
+        selected = null;
+      }
+      if (name === "rotate") {
+        if (["block", "terrain"].includes(o.type)) [o.w, o.h] = [o.h, o.w];
+        o.rotation = (o.rotation + 1) % 4;
+      }
+    });
+  }
+  document
+    .querySelectorAll("[data-action]")
+    .forEach((b) => (b.onclick = () => action(b.dataset.action)));
+  document.querySelectorAll("[data-tool]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        tool = b.dataset.tool;
+        movePending = false;
+        hideMenu();
+        sync();
+        draw();
+      }),
+  );
+  for (let i = 0; i < 5; i++) {
+    const b = document.createElement("button");
+    b.dataset.round = i;
+    b.innerHTML = `<span>0${i + 1}</span> Round ${i + 1}`;
+    b.onclick = () => switchLayout(team, i);
+    $("rounds").append(b);
+  }
+  function switchLayout(t, r) {
+    stopTest();
+    team = +t;
+    round = r;
+    selected = null;
+    movePending = false;
+    hideMenu();
+    sync();
+    fit();
+  }
+  $("teamSize").onchange = (e) => switchLayout(e.target.value, round);
+  function palette() {
+    $("palette").replaceChildren();
+    let count = 0;
+    for (const [type, [name]] of Object.entries(catalog)) {
+      if (!name.toLowerCase().includes($("search").value.toLowerCase()))
+        continue;
+      count++;
+      const b = document.createElement("button");
+      b.className = "tile";
+      b.dataset.type = type;
+      const c = document.createElement("canvas");
+      c.width = 96;
+      c.height = 90;
+      c.setAttribute("aria-hidden", "true");
+      const pc = c.getContext("2d");
+      pc.imageSmoothingEnabled = false;
+      const size = ["door", "gate"].includes(type) ? 2 : 1;
+      pc.translate(12, 8);
+      pc.scale(70 / size, 70 / size);
+      drawObject(pc, { type, x: 0, y: 0, w: size, h: size, rotation: 0 });
+      b.append(c, document.createTextNode(name));
+      b.onclick = () => {
+        if (
+          type === "switch" &&
+          !level().objects.some((o) => o.type === "gate")
+        ) {
+          toast("Place a gate first, then connect a pressure switch.");
+          return;
+        }
+        brush = {
+          type,
+          w: size,
+          h: size,
+          rotation: 0,
+          ...(type === "switch"
+            ? {
+                gateId: level().objects.find((o) => o.type === "gate").id,
+                mode: "any",
+              }
+            : {}),
+        };
+        selected = null;
+        tool = "paint";
+        movePending = false;
+        hideMenu();
+        sync();
+        draw();
+      };
+      $("palette").append(b);
+    }
+    $("paletteCount").textContent = count;
+    sync();
+  }
+  $("search").oninput = palette;
+  [atlas, players, lasers].forEach(
+    (i) =>
+      (i.onload = () => {
+        palette();
+        draw();
+      }),
+  );
+  $("levelName").onchange = (e) =>
+    mutate(() => (level().name = e.target.value.trim() || "Untitled round"));
+  for (const [id, prop] of [
+    ["levelW", "width"],
+    ["levelH", "height"],
+  ])
+    $(id).onchange = (e) => {
+      mutate(() => (level()[prop] = +e.target.value));
+      fit();
+    };
+  for (const [id, prop] of [
+    ["objectW", "w"],
+    ["objectH", "h"],
+  ])
+    $(id).onchange = (e) => {
+      if (selected)
+        mutate(
+          () =>
+            (level().objects.find((o) => o.id === selected)[prop] =
+              +e.target.value),
+        );
+      else {
+        brush[prop] = Math.max(
+          1,
+          Math.min(
+            prop === "w" ? level().width : level().height,
+            Math.round(+e.target.value) || 1,
+          ),
+        );
+        sync();
+        draw();
+      }
+    };
+  $("linked").onchange = (e) =>
+    mutate(() => (level().linked = e.target.checked));
+  for (const [id, prop] of [
+    ["gateSelect", "gateId"],
+    ["switchMode", "mode"],
+  ])
+    $(id).onchange = (e) => {
+      if (selected)
+        mutate(() => {
+          const o = level().objects.find((o) => o.id === selected);
+          o[prop] = e.target.value;
+          if (prop === "mode")
+            level()
+              .objects.filter(
+                (b) => b.type === "switch" && b.gateId === o.gateId,
+              )
+              .forEach((b) => (b.mode = o.mode));
+        });
+      else brush[prop] = e.target.value;
+    };
+  document
+    .querySelectorAll(".shields input")
+    .forEach(
+      (e) =>
+        (e.onchange = () =>
+          mutate(
+            () =>
+              (level().shields = [
+                ...document.querySelectorAll(".shields input:checked"),
+              ].map((x) => +x.value)),
+          )),
+    );
+  $("undo").onclick = () => history(undo, redo);
+  $("redo").onclick = () => history(redo, undo);
+  $("fit").onclick = fit;
+  $("zoomIn").onclick = () => zoom(1.2);
+  $("zoomOut").onclick = () => zoom(1 / 1.2);
+  $("gridToggle").onclick = () => {
+    showGrid = !showGrid;
+    $("gridToggle").setAttribute("aria-pressed", showGrid);
+    draw();
+  };
+  addEventListener("keydown", (e) => {
+    if (
+      /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) ||
+      $("adminDialog").open ||
+      !$("testPanel").hidden
+    )
+      return;
+    const k = e.key.toLowerCase();
+    if (
+      [" ", "delete", "backspace"].includes(k) ||
+      ((e.ctrlKey || e.metaKey) && ["z", "y", "s"].includes(k))
+    )
+      e.preventDefault();
+    if (k === " ") {
+      space = true;
+      draw();
+    }
+    if (k === "escape") {
+      selected = null;
+      movePending = false;
+      hideMenu();
+      sync();
+      draw();
+    }
+    if ((e.ctrlKey || e.metaKey) && k === "z")
+      return e.shiftKey ? history(redo, undo) : history(undo, redo);
+    if ((e.ctrlKey || e.metaKey) && k === "y") return history(redo, undo);
+    if ((e.ctrlKey || e.metaKey) && k === "s") return save();
+    if (["delete", "backspace"].includes(k)) action("delete");
+    if (k === "r") {
+      if (selected) action("rotate");
+      else {
+        [brush.w, brush.h] = [brush.h, brush.w];
+        brush.rotation = (brush.rotation + 1) % 4;
+        sync();
+        draw();
+      }
+    }
+    const shortcuts = {
+      v: "select",
+      b: "paint",
+      f: "fill",
+      e: "erase",
+      h: "pan",
+    };
+    if (shortcuts[k]) {
+      tool = shortcuts[k];
+      sync();
+      draw();
+    }
+  });
+  addEventListener("keyup", (e) => {
+    if (e.key === " ") {
+      space = false;
+      draw();
+    }
+  });
+  addEventListener("blur", () => {
+    space = false;
+    if (gesture) endGesture();
+  });
+  $("export").onclick = () => {
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(campaign, null, 2)], {
+        type: "application/json",
+      }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tiny-park-campaign.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  $("import").onclick = () => $("fileInput").click();
+  $("fileInput").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      if (file.size > 2_000_000) throw Error("Keep campaign files under 2 MB.");
+      const raw = JSON.parse(await file.text());
+      const data = raw.grid ? D.legacyLevel(raw) : D.validate(raw);
+      checkpoint();
+      if (raw.grid) campaign.variants[team][round] = data;
+      else campaign = data;
+      selected = null;
+      changed();
+      fit();
+      toast("Campaign imported. Undo is available.");
+    } catch (err) {
+      toast(err.message);
+    }
+    e.target.value = "";
+  };
+  function play() {
+    const issues = D.warnings(level());
+    if (issues.length) {
+      toast(issues[0]);
+      return;
+    }
+    hideMenu();
+    $("testPanel").hidden = false;
+    $("testStatus").textContent =
+      "Arrows to move · ↓ to enter · Tab to switch player";
+    $("testFrame").src = "test.html";
+  }
+  function stopTest() {
+    $("testPanel").hidden = true;
+    $("testFrame").removeAttribute("src");
+  }
+  $("play").onclick = play;
+  $("stopTest").onclick = stopTest;
+  $("restartTest").onclick = play;
+  addEventListener("message", (e) => {
+    if (
+      e.origin !== location.origin ||
+      e.source !== $("testFrame").contentWindow
+    )
+      return;
+    if (e.data?.type === "park:ready") {
+      e.source.postMessage(
+        { type: "park:test", level: D.clone(level()), players: team },
+        location.origin,
+      );
+      $("testFrame").focus();
+    }
+    if (e.data?.type === "park:complete")
+      $("testStatus").textContent =
+        "✓ Round complete! All teammates reached the exit.";
+    if (e.data?.type === "park:player")
+      $("testStatus").textContent =
+        `Controlling player ${e.data.player} / ${team} · Arrows + ↓ · Tab switches`;
+    if (e.data?.type === "park:stop") stopTest();
+  });
+  $("admin").onclick = () => {
+    $("publishStatus").textContent = "";
+    $("publishSummary").textContent =
+      "20 layouts · 1–4 players per team · five rounds each";
+    $("adminDialog").showModal();
+  };
+  $("closeAdmin").onclick = () => $("adminDialog").close();
+  $("adminDialog").addEventListener(
+    "close",
+    () => ($("adminPassword").value = ""),
+  );
+  $("publishForm").onsubmit = async (e) => {
+    e.preventDefault();
+    $("publish").disabled = true;
+    try {
+      D.validate(campaign, true);
+      $("publishStatus").textContent = "Publishing…";
+      const response = await fetch("/api/levels", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${$("adminPassword").value}`,
+        },
+        body: JSON.stringify({ campaign, revision }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (response.status === 409) $("publish").dataset.conflict = "true";
+        throw Error(result.error || "Publishing failed.");
+      }
+      revision = result.revision;
+      $("publishStatus").textContent =
+        "Published! New matches will use this campaign.";
+      $("adminPassword").value = "";
+    } catch (err) {
+      $("publishStatus").textContent = err.message;
+    } finally {
+      $("publish").disabled = $("publish").dataset.conflict === "true";
+    }
+  };
+  fetch("/api/levels")
+    .then(async (r) => {
+      if (!r.ok || !r.headers.get("content-type")?.includes("application/json"))
+        return;
+      const data = await r.json();
+      revision = data.revision;
+      if (data.campaign && !hadDraft && !edited) {
+        campaign = D.validate(data.campaign);
+        sync();
+        fit();
+      }
+    })
+    .catch(() => {});
+  new ResizeObserver(() => draw()).observe($("viewport"));
+  palette();
+  sync();
+  requestAnimationFrame(fit);
+  // Read-only diagnostics for browser verification and draft recovery.
+  window.parkStudio = {
+    snapshot: () => D.clone(campaign),
+    camera: () => ({ ...camera }),
+    active: () => ({ team, round }),
+    selected: () => selected,
+  };
+})();

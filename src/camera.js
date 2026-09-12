@@ -54,8 +54,8 @@
   Renderer.prototype.resetDynamicCamera=function(){ if(this.camera)this.camera.initialized=false; };
 
   Renderer.prototype.resizeCanvas=function(){
-    this.canvas.width=window.innerWidth;
-    this.canvas.height=window.innerHeight;
+    this.canvas.width=this.game.options.canvas ? this.canvas.parentElement.clientWidth : window.innerWidth;
+    this.canvas.height=this.game.options.canvas ? this.canvas.parentElement.clientHeight : window.innerHeight;
     if(this.camera&&this.camera.initialized) return;
     this.globalScale=1;
   };
@@ -63,11 +63,12 @@
   Renderer.prototype.renderLoop=function(self){
     const averageStrength=50,currentFps=(new Date()).getTime()-self.lastFPS;
     if(currentFps<100) self.fps=((self.fps*averageStrength)+currentFps)/(averageStrength+1);
+    self.game.networkPlayback?.update();
     self.clearCanvas();
     self.renderBackground();
     self.updateDynamicCamera();
     self.ctx.save();
-    self.ctx.translate((self.offset.x*self.globalScale)+(window.innerWidth*.5),(self.offset.y*self.globalScale)+(window.innerHeight*.5));
+    self.ctx.translate((self.offset.x*self.globalScale)+(self.canvas.width*.5),(self.offset.y*self.globalScale)+(self.canvas.height*.5));
     self.ctx.scale(self.globalScale,self.globalScale);
     self.renderLevel(self.game.levelHandler);
     self.renderConstraints();

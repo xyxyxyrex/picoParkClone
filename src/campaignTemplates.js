@@ -37,7 +37,7 @@
   function level1(rawCount){
     const n=clampCount(rawCount),c=CAMPAIGN_TEMPLATE_CONFIG.level1;
     const w=c.baseWidth+n*2,h=c.height,g=h-2,s=baseStage('level1',n,w,h);
-    const wallX=c.wallX+Math.floor(n/3),wallHeight=n===1?2:2+Math.ceil(n/2);
+    const wallX=c.wallX+Math.floor(n/3),wallHeight=n===1?2:Math.min(n,2+Math.ceil(n/2));
     fill(s.map,wallX,g-wallHeight,2,wallHeight,1);fill(s.map,wallX,g-wallHeight,5,1,1);
     if(n===1)fill(s.map,wallX-2,g-1,1,1,1);
     s.keys.push({pos:pos(wallX+4,g-wallHeight-1)});s.doors.push({pos:pos(w-3,g),acceptsKey:true,checkpoint:true});
@@ -84,13 +84,13 @@
     s.lasers.push({pos:pos(gateX-3,g-3),angle:2});s.shieldRule={type:'onePerTeam',direction:2};
     fill(s.map,gateX-1,0,3,g-5,1);s.doors.push({id:'final-gate',pos:pos(gateX,g),acceptsKey:false,checkpoint:false,blocking:true,gate:true});
     const required=n===1?1:2;s.buttons.push({id:'final-a',pos:pos(gateX-7,g-1),gateId:'final-gate',mode:'all',required});if(required===2)s.buttons.push({id:'final-b',pos:pos(gateX-4,g-1),gateId:'final-gate',mode:'all',required});
-    const stackHeight=n===1?2:2+Math.floor(n/2);fill(s.map,w-11,g-stackHeight,3,stackHeight,1);
+    const stackHeight=n===1?2:Math.min(n,2+Math.floor(n/2));fill(s.map,w-11,g-stackHeight,3,stackHeight,1);
     s.keys.push({pos:pos(w-9,g-stackHeight-1)});s.doors.push({pos:pos(w-3,g),acceptsKey:true,checkpoint:true,finish:true});
     s.description='Final exam: pits, a weighted block, shielded laser crossing, simultaneous switches, then a last stack to the key.';return s;
   }
 
   const builders={level1,level2,level3,level4,level5};
-  function buildStage(idOrNumber,count){const id=String(idOrNumber).startsWith('level')?String(idOrNumber):`level${idOrNumber}`;if(!builders[id])throw new Error(`Unknown campaign stage: ${id}`);return builders[id](count);}
+  function buildStage(idOrNumber,count){if(window.parkCampaign && window.ParkData){const n=clampCount(count),r=Number(String(idOrNumber).replace('level',''))-1;return ParkData.blueprint(window.parkCampaign.variants[n][r],`level${r+1}`);}const id=String(idOrNumber).startsWith('level')?String(idOrNumber):`level${idOrNumber}`;if(!builders[id])throw new Error(`Unknown campaign stage: ${id}`);return builders[id](count);}
   function offsetBlueprint(stage,ox,oy,team,stageNumber){
     const move=p=>pos(p.x+ox,p.y+oy);
     return {...stage,team,stageNumber,offset:pos(ox,oy),spawn:move(stage.spawn),blocks:stage.blocks.map(b=>({...b,pos:move(b.pos)})),lasers:stage.lasers.map(l=>({...l,pos:move(l.pos),team,stage:stageNumber})),buttons:stage.buttons.map(b=>({...b,pos:move(b.pos),id:`${team}-s${stageNumber}-${b.id}`,gateId:b.gateId?`${team}-s${stageNumber}-${b.gateId}`:null,team,stage:stageNumber})),keys:stage.keys.map(k=>({...k,pos:move(k.pos),team,stage:stageNumber})),doors:stage.doors.map(d=>({...d,pos:move(d.pos),id:d.id?`${team}-s${stageNumber}-${d.id}`:`${team}-s${stageNumber}-exit`,team,stage:stageNumber,campaignStage:d.checkpoint?stageNumber:null})),jumppads:stage.jumppads.map(move)};
@@ -99,7 +99,7 @@
     const t1=clampCount(teamCounts&&teamCounts.team1),t2=clampCount(teamCounts&&teamCounts.team2),s1=[1,2,3,4,5].map(i=>buildStage(i,t1)),s2=[1,2,3,4,5].map(i=>buildStage(i,t2));
     const stageWidths=s1.map((s,i)=>Math.max(s.width,s2[i].width)),xOffsets=[];let cursor=0;stageWidths.forEach(w=>{xOffsets.push(cursor);cursor+=w+5;});
     const laneHeight=Math.max(...s1.map(s=>s.height),...s2.map(s=>s.height))+4,team2Y=laneHeight,totalH=laneHeight*2-4,totalW=cursor-5,map=blank(totalW,totalH),all={blocks:[],lasers:[],buttons:[],keys:[],doors:[],jumppads:[]},spawns={team1:{},team2:{}},stageMeta={team1:{},team2:{}};
-    function merge(team,stages,yOffset){stages.forEach((stage,index)=>{const sn=index+1,ox=xOffsets[index];for(let y=0;y<stage.height;y++)for(let x=0;x<stage.width;x++)if(stage.map[y][x])map[y+yOffset][x+ox]=stage.map[y][x];const moved=offsetBlueprint(stage,ox,yOffset,team,sn);['blocks','lasers','buttons','keys','doors','jumppads'].forEach(k=>all[k].push(...moved[k]));spawns[team][sn]=moved.spawn;stageMeta[team][sn]={bindPlayers:stage.bindPlayers,shieldRule:stage.shieldRule,name:stage.name,description:stage.description,bounds:{x:ox,y:yOffset,w:stage.width,h:stage.height}};});}
+    function merge(team,stages,yOffset){stages.forEach((stage,index)=>{const sn=index+1,ox=xOffsets[index];for(let y=0;y<stage.height;y++)for(let x=0;x<stage.width;x++)if(stage.map[y][x])map[y+yOffset][x+ox]=stage.map[y][x];const moved=offsetBlueprint(stage,ox,yOffset,team,sn);['blocks','lasers','buttons','keys','doors','jumppads'].forEach(k=>all[k].push(...moved[k]));spawns[team][sn]=moved.spawn;stageMeta[team][sn]={bindPlayers:stage.bindPlayers,shieldRule:stage.shieldRule,shields:stage.shields||[],name:stage.name,description:stage.description,bounds:{x:ox,y:yOffset,w:stage.width,h:stage.height}};});}
     merge('team1',s1,0);merge('team2',s2,team2Y);
     return {id:'versusCampaign',name:'Five-Level Versus Campaign',campaign:true,width:totalW,height:totalH,map,...all,playersBinded:false,playersHaveShields:[],spawnByTeam:spawns,stageMeta,teamCounts:{team1:t1,team2:t2}};
   }

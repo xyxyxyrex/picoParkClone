@@ -14,6 +14,8 @@ class LevelHandler {
         this.loadLevel(resolved,name);
     }
     restartLevel() {
+        this.revision=(this.revision||0)+1;
+        if(this.game.networkPlayback)this.game.networkPlayback.clear();
         this.game.doors=[];this.game.entities=[];this.game.buttons=[];this.game.triggers=[];this.game.constraints=[];this.game.playersBinded=false;
         this.game.blocks=[];this.game.lasers=[];this.game.jumppads=[];
         Matter.Composite.remove(this.game.matter.engine.world,this.levelComp);
@@ -22,7 +24,7 @@ class LevelHandler {
         this.game.jumppadHandler.comp=Matter.Composite.create();Matter.Composite.add(this.game.matter.engine.world,this.game.jumppadHandler.comp);
         Matter.Composite.remove(this.game.matter.engine.world,this.game.blockHandler.comp);
         this.game.blockHandler.comp=Matter.Composite.create();Matter.Composite.add(this.game.matter.engine.world,this.game.blockHandler.comp);
-        if(window.hostConnection) window.hostConnection.broadcast(JSON.stringify({restartLevel:true}));
+        if(window.hostConnection && !this.game.options.team) window.hostConnection.broadcast(JSON.stringify({restartLevel:true}));
     }
     addStaticRect(cx,cy,w,h){
         const wall=Matter.Bodies.rectangle(cx,cy,w,h,{isStatic:true});
@@ -63,7 +65,7 @@ class LevelHandler {
             if(levelData.shieldRule&&activePlayers.length)activePlayers.slice().sort((a,b)=>String(a.body.id).localeCompare(String(b.body.id)))[0].hasShield[levelData.shieldRule.direction||2]=true;
             if(levelData.playersHaveShields&&!window.clientConnection)levelData.playersHaveShields.forEach((shield,i)=>{if(activePlayers.length)activePlayers[i%activePlayers.length].hasShield[shield]=true;});
             activePlayers.forEach((player,i)=>{
-                if(levelData.spawn){player.dead=false;player.ready=false;player.body.isStatic=false;Matter.Body.setPosition(player.body,v(levelData.spawn.x*50,levelData.spawn.y*50-(i*48)));Matter.Body.setVelocity(player.body,v(0,0));}
+                if(levelData.spawn){player.dead=false;player.ready=false;player.body.isStatic=false;Matter.Body.setPosition(player.body,v(levelData.spawn.x*50,levelData.spawn.y*50-(i*spriteSize.y)));Matter.Body.setVelocity(player.body,v(0,0));}
                 else player.restart(i);
             });
         }

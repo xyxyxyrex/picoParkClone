@@ -1,70 +1,95 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="./assets/imgs/favicon.png">
-  <link rel="stylesheet" href="./ui.css">
-  <title>Tiny Park</title>
-</head>
-<body class="arcade-ui">
-  <main class="pixel-shell">
-    <header class="pixel-header">
-      <div class="pixel-kicker">WebRTC co-op chaos</div>
-      <h1 class="pixel-title">Tiny Park</h1>
-      <p class="pixel-subtitle">A browser co-op puzzle platformer with player-count-aware stages. Classic mode keeps everyone together. Versus mode supports two balanced teams of up to 6 players each, while observers spectate without taking a slot.</p>
-    </header>
-
-    <section class="pixel-grid">
-      <article class="pixel-card pixel-stack">
-        <h2>Create Room</h2>
-        <label class="pixel-label">Your name<input class="pixel-input username-input" type="text" maxlength="18" placeholder="PLAYER 1"></label>
-        <div>
-          <div class="pixel-kicker" style="margin-bottom:8px">Game mode</div>
-          <div class="mode-tabs">
-            <label class="mode-option"><input type="radio" name="mode" value="classic" checked><span>Classic Co-op</span></label>
-            <label class="mode-option"><input type="radio" name="mode" value="versus"><span>Versus</span></label>
-          </div>
-        </div>
-        <p class="pixel-status" id="hostModeHint">Everyone works together through five dynamically scaled puzzle templates.</p>
-        <button class="pixel-btn green" id="createRoom">Create Room</button>
-      </article>
-
-      <article class="pixel-card pixel-stack">
-        <h2>Join Room</h2>
-        <label class="pixel-label">Your name<input class="pixel-input username-input" type="text" maxlength="18" placeholder="PLAYER 2"></label>
-        <label class="pixel-label">Room code<input class="pixel-input" id="codeInput" type="text" maxlength="12" autocomplete="off" placeholder="ABCD"></label>
-        <button class="pixel-btn cyan" id="joinRoom">Join Room</button>
-        <p class="pixel-status">Team selection happens inside the lobby. The host enforces equal team sizes and a hard 6-player cap per team.</p>
-      </article>
-    </section>
-
-    <section class="pixel-card" style="margin-top:18px">
-      <div class="pixel-row" style="justify-content:space-between">
-        <div><h2 style="margin-bottom:6px">Build A Level</h2><div class="pixel-status">Load any of the five campaign templates at 1–6 players, then edit the generated geometry with the visual level lab.</div></div>
-        <a class="pixel-btn pink" href="./lvl.html">Open Editor</a>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tiny Park</title>
+    <link rel="icon" href="assets/imgs/favicon.png" />
+    <link rel="stylesheet" href="ui.css" />
+  </head>
+  <body class="arcade-ui main-menu">
+    <main class="menu-home">
+      <header>
+        <h1 class="wordmark">TINY PARK</h1>
+      </header>
+      <nav class="home-options" aria-label="Main menu">
+        <button class="menu-link" id="openCreate">CREATE ROOM</button>
+        <button class="menu-link" id="openJoin">JOIN ROOM</button>
+        <a class="menu-link" href="lvl.html">LEVEL EDITOR</a>
+      </nav>
+      <div class="park-floor" aria-hidden="true">
+        <canvas id="menuCharacters" width="640" height="54"></canvas>
       </div>
-    </section>
-
-    <div class="arcade-footer">STATIC HTML + MATTER.JS + PEERJS / CLOUDFLARE PAGES READY</div>
-  </main>
-
-  <script>
-    const usernameInputs=[...document.querySelectorAll('.username-input')];
-    const savedName=localStorage.getItem('username')||'';
-    usernameInputs.forEach(input=>{input.value=savedName;input.addEventListener('input',()=>{localStorage.setItem('username',input.value.trim());usernameInputs.forEach(other=>{if(other!==input)other.value=input.value;});});});
-    const modeInputs=[...document.querySelectorAll('input[name="mode"]')];
-    const modeHint=document.getElementById('hostModeHint');
-    modeInputs.forEach(input=>input.addEventListener('change',()=>{
-      modeHint.textContent=input.value==='versus'
-        ? 'Two equal teams (1–6 each) race independently through all five stages. The host starts as an observer; first team to clear Level 5 wins.'
-        : 'Everyone works together through five dynamically scaled puzzle templates.';
-    }));
-    function safeName(){const name=(usernameInputs[0].value||'').trim().slice(0,18);localStorage.setItem('username',name||'unnamed');return name||'unnamed';}
-    document.getElementById('createRoom').addEventListener('click',()=>{safeName();const mode=document.querySelector('input[name="mode"]:checked').value;location.href=`./game.html?host=true&mode=${encodeURIComponent(mode)}`;});
-    function joinRoom(){safeName();const code=document.getElementById('codeInput').value.trim().toUpperCase();if(!code)return;location.href=`./game.html?join=${encodeURIComponent(code)}`;}
-    document.getElementById('joinRoom').addEventListener('click',joinRoom);
-    document.getElementById('codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom();});
-  </script>
-</body>
+      <p class="home-footnote">2 TEAMS. 5 ROUNDS. ONE WINNER.</p>
+    </main>
+    <dialog id="createDialog" class="menu-dialog">
+      <form id="createForm">
+        <header class="dialog-heading">
+          <h2>CREATE ROOM</h2>
+          <button
+            class="close-dialog"
+            type="button"
+            data-close
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </header>
+        <label class="pixel-label"
+          >YOUR NAME<input
+            class="pixel-input username-input"
+            maxlength="18"
+            placeholder="Player"
+            autocomplete="nickname"
+        /></label>
+        <label class="pixel-label"
+          >GAME MODE<select class="pixel-select" id="gameMode">
+            <option value="classic">Classic co-op</option>
+            <option value="versus">Team versus</option>
+          </select></label
+        >
+        <p class="pixel-status" id="hostModeHint">
+          Work together through five rounds.
+        </p>
+        <button class="pixel-btn" id="createRoom" type="submit">CREATE</button>
+      </form>
+    </dialog>
+    <dialog id="joinDialog" class="menu-dialog">
+      <form id="joinForm">
+        <header class="dialog-heading">
+          <h2>JOIN ROOM</h2>
+          <button
+            class="close-dialog"
+            type="button"
+            data-close
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </header>
+        <label class="pixel-label"
+          >YOUR NAME<input
+            class="pixel-input username-input"
+            maxlength="18"
+            placeholder="Player"
+            autocomplete="nickname"
+        /></label>
+        <label class="pixel-label"
+          >ROOM CODE<input
+            class="pixel-input room-input"
+            id="codeInput"
+            maxlength="12"
+            required
+            pattern="[A-Za-z0-9-]+"
+            title="Enter the room code shown by your host"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            placeholder="XXXXXXXX"
+        /></label>
+        <button class="pixel-btn" id="joinRoom" type="submit">JOIN</button>
+      </form>
+    </dialog>
+    <script src="src/home.js"></script>
+  </body>
 </html>

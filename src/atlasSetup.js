@@ -21,10 +21,10 @@ function drawSprite(render, player) {
         color = player.color,
         pos = player.body.position,
         spos = getSpritePosition(frameId, color, player)
-    drawImageTemp(ctx, v(
-        pos.x-(spos.size.x/2),
-        pos.y-(spos.size.y/2),
-    ),spos.pos, spos.size)
+    // Scale the original animation to a one-tile standing height.
+    const height=spos.size.y*(spriteSize.y/46)
+    ctx.drawImage(mainAtlas,spos.pos.x,spos.pos.y,spos.size.x,spos.size.y,
+        pos.x-spos.size.x/2,pos.y-height/2,spos.size.x,height)
     return spos.choosenFrame
 }
 function drawImageTemp(ctx,pos,spos,size) {
@@ -32,7 +32,7 @@ function drawImageTemp(ctx,pos,spos,size) {
     
 }
 
-var spriteSize = v(40,46)
+var spriteSize = v(40,50)
 
 var sprites = {
     "idle":{

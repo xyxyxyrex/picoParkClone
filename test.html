@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tiny Park · Play test</title>
+    <style>
+      @font-face {
+        font-family: squareforced;
+        src: url("assets/FORCEDSQUARE.ttf");
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+      #controls {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        display: flex;
+        gap: 6px;
+      }
+      button {
+        border: 1px solid #e77850;
+        border-radius: 0;
+        background: #faf9f6;
+        padding: 9px;
+        color: #b94d2c;
+        font:
+          11px Arial,
+          sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="controls"></div>
+    <script>
+      window.localfile = false;
+      window.keys = {};
+      window.preKeys = {};
+      function updateControls() {}
+    </script>
+    <script src="libs/common.js"></script>
+    <script src="libs/matter.min.js"></script>
+    <script src="libs/matterjsRaycast.js"></script>
+    <script src="src/buttons.js"></script>
+    <script src="src/door.js"></script>
+    <script src="src/trigger.js"></script>
+    <script src="src/blocks.js"></script>
+    <script src="src/lasers.js"></script>
+    <script src="src/jumppad.js"></script>
+    <script src="src/campaignTemplates.js"></script>
+    <script src="src/levels.js"></script>
+    <script src="src/level.js"></script>
+    <script src="src/matterInit.js"></script>
+    <script src="src/atlasSetup.js"></script>
+    <script src="src/syncController.js"></script>
+    <script src="src/update.js"></script>
+    <script src="src/player.js"></script>
+    <script src="src/render.js"></script>
+    <script src="src/entity.js"></script>
+    <script src="src/particles.js"></script>
+    <script src="src/game.js"></script>
+    <script src="src/constraints.js"></script>
+    <script src="src/level-data.js"></script>
+    <script src="src/play-session.js"></script>
+  </body>
+</html>

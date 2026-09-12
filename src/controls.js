@@ -1,27 +1,24 @@
-var keys = {},preKeys = {}
-document.addEventListener("keydown",(e)=>{
-    if(e.code=="F1")mainGame.renderer.debug = !mainGame.renderer.debug
-    keys[e.key.toLowerCase()]=true})
-document.addEventListener("keyup",(e)=>{keys[e.key.toLowerCase()]=false})
+var keys = {},
+  preKeys = {};
+document.addEventListener("keydown", (e) => {
+  if (e.code == "F1") mainGame.renderer.debug = !mainGame.renderer.debug;
+  keys[e.key.toLowerCase()] = true;
+  if (window.clientConnection && !e.repeat) {
+    if (e.key.toLowerCase() === "arrowup")
+      clientConnection.jumpSequence = (clientConnection.jumpSequence || 0) + 1;
+    clientConnection.updateHost();
+  }
+});
+document.addEventListener("keyup", (e) => {
+  keys[e.key.toLowerCase()] = false;
+  if (window.clientConnection) clientConnection.updateHost();
+});
 
 function updateControls() {
-    if (window.clientConnection) {
-        let playerControls = mainGame.players[0].controls
-        var fu = (n)=>{
-            if (keys[playerControls[n]]&&!preKeys[playerControls[n]]) {
-                clientConnection.updateKey(playerControls[n], true)
-            }
-            if (!keys[playerControls[n]]&&preKeys[playerControls[n]]) {
-                clientConnection.updateKey(playerControls[n], false)
-            }
-        }
-
-        fu(0)
-        fu(1)
-        fu(2)
-        fu(3)
-        
-    }
-
-    preKeys = {...keys}
+  preKeys = { ...keys };
 }
+window.addEventListener("blur", () => {
+  keys = {};
+  preKeys = {};
+  if (window.clientConnection) clientConnection.updateHost();
+});

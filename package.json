@@ -1,0 +1,33 @@
+{
+  "name": "tiny-park",
+  "version": "1.0.0",
+  "description": "Tiny Park team-versus game and level studio",
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "dev": "npm run build && wrangler pages dev",
+    "test": "node --test tests/*.test.cjs",
+    "test:browser": "playwright test",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name tiny-park"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xyxyxyrex/picoParkClone.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/xyxyxyrex/picoParkClone/issues"
+  },
+  "homepage": "https://github.com/xyxyxyrex/picoParkClone#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "peer": "^1.0.2",
+    "prettier": "^3.9.6",
+    "wrangler": "^4.129.1"
+  },
+  "overrides": {
+    "qs": "6.16.0"
+  }
+}

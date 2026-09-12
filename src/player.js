@@ -67,7 +67,8 @@ class PlayerHandler {
         } else {
             if (!player.dead) player.frame = "falling"
         }
-        if (keys[c[2]]) player.jump()
+        if (keys[c[2]] || player.pendingJump) player.jump()
+        player.pendingJump=false
     }
         
 
@@ -108,7 +109,7 @@ class Player {
         this.direction = 1
         this.scale = 1
 
-        this.body = this.game.matter.addBody(v(30,(this.game.players.length*50)),v(40,46),{
+        this.body = this.game.matter.addBody(v(30,(this.game.players.length*50)),v(spriteSize.x,spriteSize.y),{
             ...options.bodyOptions,
             inertia:Infinity,
             
@@ -237,13 +238,17 @@ class Player {
                 0,0
                 ))
             this.setScale(1)
+            const spawn = this.game.levelHandler.currentLevel.spawn
+            if (spawn) Matter.Body.setPosition(this.body, v(spawn.x * 50, (spawn.y - i) * 50))
     }
     updateKeys(keys) {
         this.keys = {...keys}
     }
     testFalling() {
-        if (this.body.position.y>=window.innerHeight*3) {
+        if (this.body.position.y >= (this.game.renderer.levelBounds.size.y + 250)) {
             this.restart()
+
+                if (this.game.levelHandler.currentLevel.spawn) return
 
                 Matter.Body.setPosition(this.body, v(
                     100,
@@ -295,11 +300,18 @@ class Player {
     }
 
     onGround() {
-        
-        return Matter.Query.collides(this.groundDetector, Matter.Composite.allBodies(this.game.matter.engine.world).filter((a)=>{return a.id!=this.body.id&&a.id!=this.groundDetector.id&&!a.shield})).length>0
+        return !!this.getGround()
     }
     getGround() {
-        return Matter.Query.collides(this.groundDetector, Matter.Composite.allBodies(this.game.matter.engine.world).filter((a)=>{return a.id!=this.body.id&&a.id!=this.groundDetector.id&&!a.shield}))[0]
+        const feet=this.body.position.y+(spriteSize.y*this.scale/2)
+        const halfWidth=spriteSize.x*this.scale/2
+        const supports=Matter.Composite.allBodies(this.game.matter.engine.world).filter(a=>
+            a!==this.body && a!==this.groundDetector && !a.shield && !a.isSensor &&
+            a.collisionFilter.mask!==0 &&
+            a.bounds.min.y>=feet-6*this.scale && a.bounds.min.y<=feet+6*this.scale &&
+            a.bounds.max.x>this.body.position.x-halfWidth+2 &&
+            a.bounds.min.x<this.body.position.x+halfWidth-2)
+        return Matter.Query.collides(this.groundDetector,supports)[0]
     }
 
     moveHor(dir, multi=false) {
@@ -370,7 +382,12 @@ class Player {
     jump(str=1) {
         if (this.ready) {
             this.unReady()
-        } else if (this.onGround()) Matter.Body.setVelocity(this.body, v(this.body.velocity.x,-13*str))
+        } else if (this.body.velocity.y>=-0.5 && this.onGround()) {
+            // 50 px tiles: normal jump clears about 58 px at the default gravity.
+            // Jump pads retain their original launch strength.
+            const launchSpeed=str===1?8.6:13*str
+            Matter.Body.setVelocity(this.body, v(this.body.velocity.x,-launchSpeed))
+        }
         //this.updatePlayerParts()
     }
 

@@ -39,6 +39,7 @@ function instantiateBlueprint(blueprint,nextLevel=null){
       stage:desc.stage||null,
       campaignStage:desc.campaignStage||null,
       finish:!!desc.finish
+      ,open:!!desc.open
     });
     door.templateId=desc.id||`${blueprint.id||blueprint.name||'level'}-door-${index}`;
     door.id=stableNumericId(door.templateId);
@@ -55,6 +56,7 @@ function instantiateBlueprint(blueprint,nextLevel=null){
       gate.setOpen(gate._pressedSwitches.size>=needed);
     };
     const button=new Button(v(desc.pos.x,desc.pos.y),{
+      onPlayer:e=>{if(e.player&&(desc.kind==='grow'||desc.kind==='shrink'))e.player.setScale(Math.max(.5,Math.min(2,e.player.scale+(desc.kind==='grow'?.0075:-.0075))));},
       onPress:()=>{if(gate){gate._pressedSwitches.add(desc.id);refresh();}},
       onUnpress:()=>{if(gate){gate._pressedSwitches.delete(desc.id);refresh();}}
     });
@@ -67,7 +69,7 @@ function instantiateBlueprint(blueprint,nextLevel=null){
     campaign:!!blueprint.campaign,
     map:blueprint.map,
     playersBinded:!!blueprint.bindPlayers,
-    playersHaveShields:[],
+    playersHaveShields:blueprint.shields||[],
     shieldRule:blueprint.shieldRule||null,
     spawn:blueprint.spawn||null,
     spawnByTeam:blueprint.spawnByTeam||null,
@@ -83,6 +85,13 @@ function instantiateBlueprint(blueprint,nextLevel=null){
 }
 
 function resolveGameLevel(name,game){
+  if(game.options.team){
+    const stage=game.options.stage||1, team=game.options.team;
+    const bp=CampaignTemplates.buildStage(stage,game.options.playerCount);
+    bp.doors.forEach(d=>{d.team=team;d.campaignStage=stage;});
+    (bp.keys||[]).forEach(k=>{k.team=team;k.stage=stage;});
+    return instantiateBlueprint(bp,null);
+  }
   if(name==='tempLevel' && levels.tempLevel) return levels.tempLevel;
   if(name==='one') name=tinyParkMode()==='versus'?'versusCampaign':'level1';
 
