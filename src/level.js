@@ -74,7 +74,10 @@ class LevelHandler {
             dor.trigger=this.game.triggerHandler.addTrigger(v((dor.pos.x-.5)*cellsize.x,(dor.pos.y-1.5)*cellsize.y),v(cellsize.x*2,cellsize.y*2));
             this.game.doors.push(dor);dor.game=this.game;dor.trigger.onIn=dor.onIn;dor.playerCount=activePlayers.length;
             if(dor.blocking){
-                const blocker=Matter.Bodies.rectangle((dor.pos.x-1)*cellsize.x,(dor.pos.y-1.5)*cellsize.y,cellsize.x*1.4,cellsize.y*2.2,{isStatic:true});
+                // Gates are authored and rendered as a 2×2 wall. Keep the closed
+                // collider on the exact same grid footprint so the visual barrier
+                // and physical barrier agree.
+                const blocker=Matter.Bodies.rectangle((dor.pos.x-.5)*cellsize.x,(dor.pos.y-1.5)*cellsize.y,cellsize.x*2,cellsize.y*2,{isStatic:true});
                 dor.blockerBody=blocker;Matter.Composite.add(this.levelComp,blocker);dor.setOpen(dor.open);
             }
         });
