@@ -313,7 +313,7 @@ test("four tethered players overpower two without stretching or resetting the ro
 test("a larger group pulls a hanging teammate around a platform edge", async ({ page }) => {
   await page.goto("/test");
   const result = await page.evaluate(() => {
-    function setup(hangingCount, topCount) {
+    function setup(hangingCount, topCount, activePullers = topCount) {
       const g = new Game();
       g.renderer.levelBounds = { pos: v(), size: v(4000, 1200) };
       g.updateDelta = () => (g.deltaTime = 1);
@@ -324,14 +324,14 @@ test("a larger group pulls a hanging teammate around a platform edge", async ({ 
       const players = [];
       for (let i = 0; i < hangingCount; i++) {
         const player = g.playerhandler.addPlayer({});
-        Matter.Body.setPosition(player.body, v(350 - (hangingCount - 1 - i) * 55, 530));
+        Matter.Body.setPosition(player.body, v(354 - (hangingCount - 1 - i) * 55, 520));
         player.keys = {};
         players.push(player);
       }
       for (let i = 0; i < topCount; i++) {
         const player = g.playerhandler.addPlayer({});
-        Matter.Body.setPosition(player.body, v(450 + i * 55, 450));
-        player.keys = { arrowright: true };
+        Matter.Body.setPosition(player.body, v(420 + i * 55, 450));
+        player.keys = { arrowright: i >= topCount - activePullers };
         players.push(player);
       }
       players.forEach((player) => player.updatePlayerParts());
@@ -339,7 +339,9 @@ test("a larger group pulls a hanging teammate around a platform edge", async ({ 
       return { g, players, edge: g.constraints[hangingCount - 1] };
     }
 
-    const majority = setup(1, 5);
+    // The edge link is diagonal but still inside its 100 px slack length.
+    // Only the indigo player at the far end is actively walking right.
+    const majority = setup(1, 5, 1);
     const startY = majority.players[0].body.position.y;
     majority.g.initPhysics();
     Matter.Runner.stop(majority.g.matter.runner);

@@ -29,10 +29,11 @@ class ConstraintHandler {
       for (const link of this.game.constraints) this.enforceMaxLength(link);
   }
 
-  isBlockedHorizontally(player, direction) {
-    if (!direction || !player?.body?.bounds) return false;
+  horizontalBlockers(player, direction) {
+    if (!direction || !player?.body?.bounds) return [];
     const bounds = player.body.bounds;
-    const probe = 6;
+    // Reach past the leading edge to include the top tile behind the corner.
+    const probe = Math.max(6, (bounds.max.x - bounds.min.x) * 0.75);
     const inset = 4;
     const region = {
       min: {
@@ -44,17 +45,15 @@ class ConstraintHandler {
         y: bounds.max.y - inset,
       },
     };
-    return (
-      Matter.Query.region(
-        Matter.Composite.allBodies(this.game.matter.engine.world).filter(
-          (body) =>
-            body !== player.body &&
-            body.isStatic &&
-            !body.isSensor &&
-            body.collisionFilter.mask !== 0,
-        ),
-        region,
-      ).length > 0
+    return Matter.Query.region(
+      Matter.Composite.allBodies(this.game.matter.engine.world).filter(
+        (body) =>
+          body !== player.body &&
+          body.isStatic &&
+          !body.isSensor &&
+          body.collisionFilter.mask !== 0,
+      ),
+      region,
     );
   }
 
@@ -65,14 +64,16 @@ class ConstraintHandler {
     const dx = playerB.body.position.x - playerA.body.position.x;
     const dy = playerB.body.position.y - playerA.body.position.y;
     const distance = Math.hypot(dx, dy);
-    if (distance <= link.restLength + 5 || Math.abs(dy) < 30) return;
+    if (!Number.isFinite(distance) || Math.abs(dy) < 8) return;
 
     const lower = dy > 0 ? playerB : playerA;
     const upper = lower === playerA ? playerB : playerA;
     const towardUpper = Math.sign(
       upper.body.position.x - lower.body.position.x,
     );
-    if (!towardUpper || !this.isBlockedHorizontally(lower, towardUpper)) return;
+    if (!towardUpper) return;
+    const blockers = this.horizontalBlockers(lower, towardUpper);
+    if (!blockers.length) return;
 
     const ordered = this.game.players
       .filter((player) => this.isActive(player))
@@ -95,15 +96,25 @@ class ConstraintHandler {
     const pullers = upperSide.filter(
       (player) => player.keys?.[player.controls?.[awayControl]],
     ).length;
-    if (pullers <= lowerSide.length) return;
+    // The upper group supplies the counterweight. One teammate walking away
+    // from the edge can transmit that group's pull through the whole chain;
+    // requiring every stationary counterweight to hold the same key made a
+    // hanging player impossible to rescue in normal play.
+    if (!pullers) return;
 
-    const advantage = Math.min(4, pullers - lowerSide.length);
-    const lift = 0.75 + advantage * 0.3;
+    const advantage = Math.min(4, upperSide.length - lowerSide.length);
+    const lift = 1 + advantage * 0.35;
     Matter.Body.translate(lower.body, { x: 0, y: -lift });
     Matter.Body.setVelocity(lower.body, {
       x: lower.body.velocity.x,
-      y: Math.min(lower.body.velocity.y, -1.5 - advantage * 0.45),
+      y: Math.min(lower.body.velocity.y, -2 - advantage * 0.5),
     });
+    // Once the player's feet clear the corner, put a small part of their body
+    // over the platform. Gravity can then settle them on top instead of
+    // leaving them suspended just outside a slack diagonal rope.
+    const blockerTop = Math.min(...blockers.map((body) => body.bounds.min.y));
+    if (lower.body.bounds.max.y - blockerTop <= lift + 3)
+      Matter.Body.translate(lower.body, { x: towardUpper * 4, y: 0 });
     link.cornerAssisted = true;
   }
 
