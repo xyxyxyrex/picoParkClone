@@ -54,6 +54,7 @@
       btn.disabled=!!state.matchStarted||((role==='team1'||role==='team2')&&count>=cap);
     });
     if(state.matchWinner) showMatchWinner(state.matchWinner==='team1'?'TEAM 1':'TEAM 2');
+    window.parkResetVote?.updateVisibility();
   };
 
   function requestRole(role){

@@ -73,6 +73,7 @@ class Client {
       return;
     }
     if (d.chatMessage) window.parkChat?.receive(d.chatMessage);
+    if (d.resetVote) window.parkResetVote?.receive(d.resetVote);
     if (d.presence) {
       const action =
         d.presence.type === "reconnected"
@@ -236,6 +237,10 @@ class Client {
   sendChat(text) {
     if (this.mainConn?.fullyConnected)
       this.mainConn.send(JSON.stringify({ chat: { text } }));
+  }
+  requestResetVote(action, choice) {
+    if (this.mainConn?.fullyConnected)
+      this.mainConn.send(JSON.stringify({ resetVote: { action, choice } }));
   }
   updateKey() {
     this.updateHost();

@@ -21,11 +21,90 @@ class ConstraintHandler {
     for (let i = 0; i < this.game.constraints.length; i++) {
       if (this.updateConstraint(this.game.constraints[i]) === "reset") break;
     }
+    for (const link of this.game.constraints) this.assistAroundCorner(link);
     // Player walking is position-based, so force alone cannot enforce a hard
     // rope length. Repeated symmetric corrections keep the chain together
     // without changing its center of mass or favoring either end.
     for (let pass = 0; pass < 12; pass++)
       for (const link of this.game.constraints) this.enforceMaxLength(link);
+  }
+
+  isBlockedHorizontally(player, direction) {
+    if (!direction || !player?.body?.bounds) return false;
+    const bounds = player.body.bounds;
+    const probe = 6;
+    const inset = 4;
+    const region = {
+      min: {
+        x: bounds.min.x + direction * probe,
+        y: bounds.min.y + inset,
+      },
+      max: {
+        x: bounds.max.x + direction * probe,
+        y: bounds.max.y - inset,
+      },
+    };
+    return (
+      Matter.Query.region(
+        Matter.Composite.allBodies(this.game.matter.engine.world).filter(
+          (body) =>
+            body !== player.body &&
+            body.isStatic &&
+            !body.isSensor &&
+            body.collisionFilter.mask !== 0,
+        ),
+        region,
+      ).length > 0
+    );
+  }
+
+  assistAroundCorner(link) {
+    const playerA = link.bodyA;
+    const playerB = link.bodyB;
+    if (!this.isActive(playerA) || !this.isActive(playerB)) return;
+    const dx = playerB.body.position.x - playerA.body.position.x;
+    const dy = playerB.body.position.y - playerA.body.position.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance <= link.restLength + 5 || Math.abs(dy) < 30) return;
+
+    const lower = dy > 0 ? playerB : playerA;
+    const upper = lower === playerA ? playerB : playerA;
+    const towardUpper = Math.sign(
+      upper.body.position.x - lower.body.position.x,
+    );
+    if (!towardUpper || !this.isBlockedHorizontally(lower, towardUpper)) return;
+
+    const ordered = this.game.players
+      .filter((player) => this.isActive(player))
+      .slice()
+      .sort((a, b) => (a.tetherIndex ?? 0) - (b.tetherIndex ?? 0));
+    const lowerIndex = ordered.indexOf(lower);
+    const upperIndex = ordered.indexOf(upper);
+    if (lowerIndex < 0 || upperIndex < 0) return;
+    const lowerSide =
+      lowerIndex < upperIndex
+        ? ordered.slice(0, lowerIndex + 1)
+        : ordered.slice(lowerIndex);
+    const upperSide =
+      lowerIndex < upperIndex
+        ? ordered.slice(upperIndex)
+        : ordered.slice(0, upperIndex + 1);
+    if (upperSide.length <= lowerSide.length) return;
+
+    const awayControl = towardUpper > 0 ? 1 : 0;
+    const pullers = upperSide.filter(
+      (player) => player.keys?.[player.controls?.[awayControl]],
+    ).length;
+    if (pullers <= lowerSide.length) return;
+
+    const advantage = Math.min(4, pullers - lowerSide.length);
+    const lift = 0.75 + advantage * 0.3;
+    Matter.Body.translate(lower.body, { x: 0, y: -lift });
+    Matter.Body.setVelocity(lower.body, {
+      x: lower.body.velocity.x,
+      y: Math.min(lower.body.velocity.y, -1.5 - advantage * 0.45),
+    });
+    link.cornerAssisted = true;
   }
 
   enforceMaxLength(link) {

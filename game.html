@@ -36,6 +36,18 @@
     <div class="hud-right"><div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">0/5</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">0/5</b></span></div><div class="hud-box" id="pingHud">PING -- MS</div></div>
   </div>
 
+  <div id="teamResetControl" class="team-reset-control" hidden>
+    <button id="startResetVote" class="hud-box reset-vote-trigger" type="button">RESET LEVEL</button>
+    <section id="resetVotePanel" class="reset-vote-panel" aria-live="polite" hidden>
+      <strong id="resetVoteQuestion">RESET THIS LEVEL?</strong>
+      <span id="resetVoteStatus"></span>
+      <div id="resetVoteActions" class="reset-vote-actions">
+        <button id="resetVoteYes" type="button">YES</button>
+        <button id="resetVoteNo" type="button">NO</button>
+      </div>
+    </section>
+  </div>
+
   <div id="gameNotice" class="game-notice" role="status" aria-live="polite"></div>
   <section id="gameChat" class="game-chat" aria-label="Game chat" hidden>
     <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
@@ -166,6 +178,7 @@
   <script src="./src/menu.js"></script>
   <script src="./src/lobby.js"></script>
   <script src="./src/chat.js"></script>
+  <script src="./src/reset-vote.js"></script>
 
   <script>
     function initGame() {

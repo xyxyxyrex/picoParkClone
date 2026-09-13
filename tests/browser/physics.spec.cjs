@@ -310,6 +310,71 @@ test("four tethered players overpower two without stretching or resetting the ro
   expect(result.balanced.reset).toBeNull();
 });
 
+test("a larger group pulls a hanging teammate around a platform edge", async ({ page }) => {
+  await page.goto("/test");
+  const result = await page.evaluate(() => {
+    function setup(hangingCount, topCount) {
+      const g = new Game();
+      g.renderer.levelBounds = { pos: v(), size: v(4000, 1200) };
+      g.updateDelta = () => (g.deltaTime = 1);
+      Matter.Composite.add(g.matter.engine.world, [
+        Matter.Bodies.rectangle(1900, 500, 3000, 50, { isStatic: true }),
+        Matter.Bodies.rectangle(400, 700, 50, 400, { isStatic: true }),
+      ]);
+      const players = [];
+      for (let i = 0; i < hangingCount; i++) {
+        const player = g.playerhandler.addPlayer({});
+        Matter.Body.setPosition(player.body, v(350 - (hangingCount - 1 - i) * 55, 530));
+        player.keys = {};
+        players.push(player);
+      }
+      for (let i = 0; i < topCount; i++) {
+        const player = g.playerhandler.addPlayer({});
+        Matter.Body.setPosition(player.body, v(450 + i * 55, 450));
+        player.keys = { arrowright: true };
+        players.push(player);
+      }
+      players.forEach((player) => player.updatePlayerParts());
+      g.bindPlayers(players);
+      return { g, players, edge: g.constraints[hangingCount - 1] };
+    }
+
+    const majority = setup(1, 5);
+    const startY = majority.players[0].body.position.y;
+    majority.g.initPhysics();
+    Matter.Runner.stop(majority.g.matter.runner);
+    let longestLink = 0;
+    for (let i = 0; i < 150; i++) {
+      Matter.Engine.update(majority.g.matter.engine, 1000 / 60);
+      longestLink = Math.max(longestLink, ...majority.g.constraints.map((link) =>
+        Math.hypot(
+          link.bodyB.body.position.x - link.bodyA.body.position.x,
+          link.bodyB.body.position.y - link.bodyA.body.position.y,
+        ),
+      ));
+    }
+
+    const minority = setup(4, 2);
+    const minorityLower = minority.edge.bodyA;
+    const minorityStartY = minorityLower.body.position.y;
+    minority.g.constraintHandler.assistAroundCorner(minority.edge);
+    return {
+      startY,
+      endY: majority.players[0].body.position.y,
+      assisted: !!majority.edge.cornerAssisted,
+      longestLink,
+      minorityLift: minorityStartY - minorityLower.body.position.y,
+    };
+  });
+
+  expect(result.assisted).toBe(true);
+  expect(result.endY).toBeLessThan(result.startY - 45);
+  // Matter resolves wall contact after the rope pass, allowing a brief
+  // sub-quarter-tile extension while the player rounds the corner.
+  expect(result.longestLink).toBeLessThanOrEqual(160);
+  expect(result.minorityLift).toBe(0);
+});
+
 test("tether order follows roster indices instead of Matter body ids", async ({
   page,
 }) => {

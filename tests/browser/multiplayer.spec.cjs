@@ -114,6 +114,44 @@ test("real WebRTC room, equal teams, host authority and five-round winner", asyn
         );
       }),
     ).toBe(true);
+    const beforeResetVote = await host.evaluate(() => ({
+      team1: versusSession.games.team1.revision,
+      team2: versusSession.games.team2.revision,
+    }));
+    await expect(host.locator("#teamResetControl")).toBeVisible();
+    await expect(teammate.locator("#teamResetControl")).toBeVisible();
+    await host.locator("#startResetVote").click();
+    await expect(host.locator("#resetVotePanel")).toBeVisible();
+    await expect(teammate.locator("#resetVotePanel")).toBeVisible();
+    await expect(opponent.locator("#resetVotePanel")).toBeHidden();
+    const resetButtonBox = await host.locator("#startResetVote").boundingBox();
+    const resetPanelBox = await host.locator("#resetVotePanel").boundingBox();
+    expect(resetPanelBox.y).toBeGreaterThanOrEqual(
+      resetButtonBox.y + resetButtonBox.height,
+    );
+    await host.locator("#resetVoteYes").click();
+    await expect(host.locator("#resetVoteStatus")).toContainText("1 YES");
+    await teammate.locator("#resetVoteYes").click();
+    await expect(host.locator("#resetVoteQuestion")).toHaveText("LEVEL RESET");
+    await host.waitForFunction(
+      (revision) => versusSession.games.team1.revision > revision,
+      beforeResetVote.team1,
+    );
+    expect(await host.evaluate(() => versusSession.games.team2.revision)).toBe(
+      beforeResetVote.team2,
+    );
+    await expect(host.locator("#resetVotePanel")).toBeHidden();
+
+    await client.locator("#startResetVote").click();
+    await expect(client.locator("#resetVotePanel")).toBeVisible();
+    await expect(opponent.locator("#resetVotePanel")).toBeVisible();
+    await expect(teammate.locator("#resetVotePanel")).toBeHidden();
+    await client.locator("#resetVoteNo").click();
+    await opponent.locator("#resetVoteNo").click();
+    await expect(client.locator("#resetVoteQuestion")).toHaveText("LEVEL KEPT");
+    expect(await host.evaluate(() => versusSession.games.team2.revision)).toBe(
+      beforeResetVote.team2,
+    );
     // A locked exit must not advance; the key must actually unlock it first.
     await host.evaluate(() => {
       const g = versusSession.games.team1,

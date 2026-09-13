@@ -14,9 +14,8 @@ class VersusSession {
     document.body.append(root);
     document.getElementById("c").style.display = "none";
     document.getElementById("menu").style.display = "none";
-    document.getElementById("restartWrap").style.display = window.hostConnection
-      ? ""
-      : "none";
+    // Versus retries are team decisions handled by the reset-vote control.
+    document.getElementById("restartWrap").style.display = "none";
     mainGame.running = true;
     const roster = mainGame.players.slice();
     for (const team of ["team1", "team2"]) {

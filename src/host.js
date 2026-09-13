@@ -20,6 +20,9 @@ class Host {
     this.reconnectGraceMs = 30000;
     this.reconnectReservations = new Map();
     this.lastHostChatAt = 0;
+    this.resetVotes = { team1: null, team2: null };
+    this.resetVoteCooldownUntil = { team1: 0, team2: 0 };
+    this.resetVoteDurationMs = 15000;
   }
   init() {
     /* The relay assigns the room code, so this.id is provisional until open. */
@@ -69,6 +72,162 @@ class Host {
     this.lastHostChatAt = now;
     this.publishChat(this.username, text);
   }
+  resetVoteVoterId(connection = null) {
+    if (!connection) return "host";
+    return connection.sessionId
+      ? `session:${connection.sessionId}`
+      : `connection:${connection.selfId || this.connections.indexOf(connection)}`;
+  }
+  resetVoteMembers(team) {
+    const members = [];
+    if (this.hostRole === team)
+      members.push({ id: this.resetVoteVoterId(), username: this.username });
+    this.connections.forEach((connection) => {
+      if (
+        connection.role === team &&
+        connection.identityReady &&
+        connection.fullyConnected
+      )
+        members.push({
+          id: this.resetVoteVoterId(connection),
+          username: connection.clientUsername,
+          connection,
+        });
+    });
+    return members;
+  }
+  resetVotePayload(vote, viewerId, extra = {}) {
+    const choices = [...vote.ballots.values()];
+    const total = this.resetVoteMembers(vote.team).length;
+    return {
+      active: true,
+      team: vote.team,
+      stage: vote.stage,
+      initiator: vote.initiator,
+      expiresAt: vote.expiresAt,
+      yes: choices.filter(Boolean).length,
+      no: choices.filter((choice) => choice === false).length,
+      total,
+      needed: Math.floor(total / 2) + 1,
+      myVote: vote.ballots.has(viewerId) ? vote.ballots.get(viewerId) : null,
+      ...extra,
+    };
+  }
+  sendResetVoteState(team, finalState = null) {
+    const vote = this.resetVotes[team] || finalState?.vote;
+    if (!vote) return;
+    const finalPayload = finalState
+      ? {
+          active: false,
+          status: finalState.status,
+          message: finalState.message,
+          team,
+          stage: vote.stage,
+        }
+      : null;
+    if (this.hostRole === team)
+      window.parkResetVote?.receive(
+        finalPayload || this.resetVotePayload(vote, this.resetVoteVoterId()),
+      );
+    this.connections.forEach((connection) => {
+      if (connection.role !== team || !connection.identityReady) return;
+      this.sendTo(connection, {
+        resetVote: finalState
+          ? finalPayload
+          : this.resetVotePayload(vote, this.resetVoteVoterId(connection)),
+      });
+    });
+  }
+  finishResetVote(team, status, message) {
+    const vote = this.resetVotes[team];
+    if (!vote) return;
+    clearTimeout(vote.timer);
+    this.resetVotes[team] = null;
+    this.resetVoteCooldownUntil[team] = Date.now() + 2500;
+    if (status === "passed") this.applyCampaignStage(team, this.progress[team]);
+    this.sendResetVoteState(team, {
+      vote,
+      active: false,
+      status,
+      message,
+    });
+  }
+  evaluateResetVote(team) {
+    const vote = this.resetVotes[team];
+    if (!vote) return;
+    if (vote.stage !== this.progress[team]) {
+      this.finishResetVote(team, "cancelled", "The team changed levels.");
+      return;
+    }
+    const members = this.resetVoteMembers(team);
+    const memberIds = new Set(members.map((member) => member.id));
+    for (const voter of vote.ballots.keys())
+      if (!memberIds.has(voter)) vote.ballots.delete(voter);
+    if (!members.length) {
+      this.finishResetVote(team, "cancelled", "No teammates are connected.");
+      return;
+    }
+    if (vote.ballots.size < members.length) {
+      this.sendResetVoteState(team);
+      return;
+    }
+    const yes = [...vote.ballots.values()].filter(Boolean).length;
+    const needed = Math.floor(members.length / 2) + 1;
+    this.finishResetVote(
+      team,
+      yes >= needed ? "passed" : "rejected",
+      yes >= needed
+        ? "Your team restarted the level."
+        : "Your team voted to keep playing.",
+    );
+  }
+  beginResetVote(team, initiator) {
+    if (
+      this.mode !== "versus" ||
+      !this.matchStarted ||
+      this.matchWinner ||
+      !["team1", "team2"].includes(team) ||
+      this.resetVotes[team] ||
+      Date.now() < this.resetVoteCooldownUntil[team] ||
+      this.reconnectReservations.size
+    )
+      return false;
+    const vote = {
+      team,
+      stage: this.progress[team],
+      initiator: String(initiator || "A teammate").slice(0, 18),
+      expiresAt: Date.now() + this.resetVoteDurationMs,
+      ballots: new Map(),
+    };
+    vote.timer = setTimeout(() => {
+      if (this.resetVotes[team] === vote)
+        this.finishResetVote(team, "rejected", "The reset vote timed out.");
+    }, this.resetVoteDurationMs);
+    this.resetVotes[team] = vote;
+    this.sendResetVoteState(team);
+    return true;
+  }
+  handleResetVote(connection, request) {
+    if (!request || typeof request !== "object") return;
+    const team = connection ? connection.role : this.hostRole;
+    const username = connection ? connection.clientUsername : this.username;
+    if (team !== "team1" && team !== "team2") return;
+    if (request.action === "start") {
+      this.beginResetVote(team, username);
+      return;
+    }
+    if (request.action !== "vote" || typeof request.choice !== "boolean")
+      return;
+    const vote = this.resetVotes[team];
+    if (!vote) return;
+    const voterId = this.resetVoteVoterId(connection);
+    if (vote.ballots.has(voterId)) return;
+    vote.ballots.set(voterId, request.choice);
+    this.evaluateResetVote(team);
+  }
+  requestTeamResetVote(action, choice) {
+    this.handleResetVote(null, { action, choice });
+  }
   setSimulationPaused(paused) {
     this.game.matter.engine.timing.timeScale = paused ? 0 : 1;
     if (window.versusSession)
@@ -98,6 +257,13 @@ class Host {
     conn.closeHandled = true;
     const i = this.connections.indexOf(conn);
     if (i >= 0) this.connections.splice(i, 1);
+    for (const team of ["team1", "team2"])
+      if (this.resetVotes[team])
+        this.finishResetVote(
+          team,
+          "cancelled",
+          "Vote cancelled while a teammate reconnects.",
+        );
     const canReconnect =
       !conn.replaced &&
       !this.matchWinner &&
@@ -272,6 +438,8 @@ class Host {
       if (d.ping) connection.sendLatest(JSON.stringify({ pong: d.ping }));
       if (d.chat && connection.identityReady)
         this.receiveChat(connection, d.chat);
+      if (d.resetVote && connection.identityReady)
+        this.handleResetVote(connection, d.resetVote);
       if (d.input && connection.role !== "observer") {
         const input = d.input;
         if (
@@ -510,6 +678,11 @@ class Host {
       assignShieldBearer(players, meta.shieldRule, stage);
   }
   beginMatch() {
+    for (const team of ["team1", "team2"]) {
+      clearTimeout(this.resetVotes[team]?.timer);
+      this.resetVotes[team] = null;
+    }
+    window.parkResetVote?.clear();
     this.matchStarted = true;
     this.matchWinner = null;
     this.progress = { team1: 1, team2: 1 };
@@ -525,6 +698,8 @@ class Host {
     if (this.mode !== "versus" || this.matchWinner || this.finished[team])
       return;
     if (stage !== this.progress[team]) return;
+    if (this.resetVotes[team])
+      this.finishResetVote(team, "cancelled", "The team completed the level.");
     if (stage >= 5) {
       this.finished[team] = true;
       this.matchWinner = team;

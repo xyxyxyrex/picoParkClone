@@ -310,6 +310,69 @@ button:disabled {
 #pingHud.warning {
   color: #b24b34;
 }
+.team-reset-control {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  z-index: 34;
+  display: grid;
+  justify-items: center;
+  transform: translateX(-50%);
+  font: 10px/1.4 Arial, sans-serif;
+}
+.team-reset-control[hidden],
+.reset-vote-panel[hidden] {
+  display: none;
+}
+.reset-vote-trigger {
+  border: 0;
+  color: #b24b34;
+  cursor: pointer;
+}
+.reset-vote-trigger:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.reset-vote-panel {
+  display: grid;
+  min-width: 190px;
+  gap: 7px;
+  margin-top: 5px;
+  padding: 10px;
+  background: rgba(250, 249, 246, 0.95);
+  color: #342e29;
+  text-align: center;
+}
+.reset-vote-panel strong {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.reset-vote-panel span {
+  color: #746b61;
+  font-size: 9px;
+}
+.reset-vote-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.reset-vote-actions button {
+  border: 1px solid rgba(52, 46, 41, 0.25);
+  padding: 6px 10px;
+  background: transparent;
+  color: #342e29;
+  font: 10px Arial, sans-serif;
+  cursor: pointer;
+}
+.reset-vote-actions button[aria-pressed="true"] {
+  border-color: #b24b34;
+  color: #b24b34;
+  font-weight: 700;
+}
+.reset-vote-actions button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
 .game-notice {
   position: fixed;
   top: 72px;
@@ -526,6 +589,9 @@ button:disabled {
   }
   .hud-right {
     gap: 4px;
+  }
+  .team-reset-control {
+    top: 48px;
   }
   #pingHud {
     min-width: 66px;
