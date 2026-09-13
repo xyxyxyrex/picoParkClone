@@ -14,6 +14,7 @@ class Client {
     this.maxTeamPlayers = 6;
     this.lastLobbyState = null;
     this.resumeId = String(this.mainPlayer?.body?.id || "");
+    this.sessionId = parkSessionId();
     this.inputTimer = null;
   }
   init(roomId) {
@@ -23,7 +24,11 @@ class Client {
       this.mainConn.e.onConnection = () => {
         this.mainConn.send(
           JSON.stringify({
-            setUsername: { name: this.username, playerId: this.resumeId },
+            setUsername: {
+              name: this.username,
+              playerId: this.resumeId,
+              sessionId: this.sessionId,
+            },
           }),
         );
         if (
@@ -35,11 +40,12 @@ class Client {
       this.mainConn.e.onClose = () => {
         if (window.versusSession) versusSession.pause();
         this.game.matter.engine.timing.timeScale = 0;
-        if (window.showLobbyMessage)
-          showLobbyMessage(
-            "Disconnected from host. Return to the lobby to reconnect.",
-            true,
-          );
+        window.parkChat?.notice(
+          this.sessionReplaced
+            ? "This game session continued in another tab."
+            : "Connection lost. Reconnecting...",
+          true,
+        );
       };
     });
     // Key events remain immediate, while this pump keeps held keys flowing at
@@ -58,6 +64,36 @@ class Client {
       return;
     }
     if (d.pong) this.recentPing = Math.round(performance.now() - d.pong);
+    if (d.sessionReplaced) {
+      this.sessionReplaced = true;
+      if (window.showLobbyMessage)
+        showLobbyMessage("This game session continued in another tab.", true);
+      window.parkChat?.notice(
+        "This game session continued in another tab.",
+        true,
+      );
+      this.peer?.destroy();
+      return;
+    }
+    if (d.chatMessage) window.parkChat?.receive(d.chatMessage);
+    if (d.presence) {
+      const action =
+        d.presence.type === "reconnected"
+          ? "has reconnected"
+          : "has disconnected";
+      window.parkChat?.system(`${d.presence.username || "A player"} ${action}`);
+    }
+    if (d.matchPaused) {
+      this.game.matter.engine.timing.timeScale = 0;
+      if (window.versusSession) versusSession.pause();
+    }
+    if (d.matchResumed) {
+      this.game.matter.engine.timing.timeScale = 1;
+      if (window.versusSession)
+        Object.values(versusSession.games).forEach(
+          (game) => (game.matter.engine.timing.timeScale = 1),
+        );
+    }
     if (d.snapshotSequence) {
       if (d.snapshotSequence <= (this.lastSnapshot || 0)) return;
       this.lastSnapshot = d.snapshotSequence;
@@ -179,6 +215,10 @@ class Client {
   requestRole(role) {
     if (this.mainConn && this.mainConn.fullyConnected)
       this.mainConn.send(JSON.stringify({ requestRole: role }));
+  }
+  sendChat(text) {
+    if (this.mainConn?.fullyConnected)
+      this.mainConn.send(JSON.stringify({ chat: { text } }));
   }
   updateKey() {
     this.updateHost();

@@ -38,7 +38,7 @@
     Object.values(buckets).flat().forEach(el=>el.innerHTML='');
     (state.members||[]).forEach(member=>{
       const role=state.mode==='versus'?(member.role||'observer'):'player';
-      (buckets[role]||[]).forEach(target=>{const chip=document.createElement('div');chip.className='member-chip';chip.innerHTML=`${esc(member.username)}${member.isHost?' <small>[HOST]</small>':''}`;target.appendChild(chip);});
+      (buckets[role]||[]).forEach(target=>{const chip=document.createElement('div');chip.className='member-chip';chip.innerHTML=`${esc(member.username)}${member.isHost?' <small>[HOST]</small>':''}${member.reconnecting?' <small>[RECONNECTING]</small>':''}`;target.appendChild(chip);});
     });
     const counts=state.counts||{team1:0,team2:0},cap=state.maxTeamPlayers||6;
     allId('team1Count').forEach(el=>el.textContent=`${counts.team1||0}/${cap}`);

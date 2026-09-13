@@ -33,8 +33,15 @@
   <div class="game-hud">
     <div class="hud-box"><a href="./index.html">HOME</a> <span id="restartWrap" style="display:none">/ <a id="restartLevel" href="#">RESTART</a></span></div>
     <div class="hud-box"><span id="modeLabel">CLASSIC CO-OP</span></div>
-    <div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">0/5</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">0/5</b></span></div>
+    <div class="hud-right"><div class="hud-box" id="versusScore" data-versus-only><span class="score-team t1">T1 <b id="score1">0/5</b></span><span>VS</span><span class="score-team t2">T2 <b id="score2">0/5</b></span></div><div class="hud-box" id="pingHud">PING -- MS</div></div>
   </div>
+
+  <div id="gameNotice" class="game-notice" role="status" aria-live="polite"></div>
+  <section id="gameChat" class="game-chat" aria-label="Game chat" hidden>
+    <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+    <div class="chat-prompt">ENTER TO CHAT</div>
+    <input id="chatInput" class="chat-input" maxlength="160" autocomplete="off" aria-label="Chat message" placeholder="MESSAGE" hidden>
+  </section>
 
   <aside id="controlsHint" class="controls-hint" hidden aria-label="Movement controls">
     <div class="controls-hint-title">CONTROLS</div>
@@ -113,6 +120,7 @@
     </main>
   </div>
 
+  <script src="./src/session.js"></script>
   <script src="./src/net-ws.js"></script>
   <script src="./src/multiplayer.js"></script>
   <script src="./src/buttons.js"></script>
@@ -143,6 +151,7 @@
   <script src="./src/versus.js"></script>
   <script src="./src/menu.js"></script>
   <script src="./src/lobby.js"></script>
+  <script src="./src/chat.js"></script>
 
   <script>
     function initGame() {
@@ -171,7 +180,6 @@
 
       setInterval(()=>{
         if(window.hostConnection && !mainGame.running) hostConnection.updateClients();
-        if(window.clientConnection) clientConnection.updateHost();
       },50);
       setInterval(()=>mainGame.players.forEach(p=>{if(!p.onlinePlayer&&!p.observer)p.updateKeys(keys);}),5);
     }
@@ -197,7 +205,7 @@
         if(counts.team1===0||counts.team2===0||counts.team1!==counts.team2) return showLobbyMessage(`Teams must be equal and non-zero. Team 1: ${counts.team1}/6, Team 2: ${counts.team2}/6.`,true);
         if(counts.team1>6||counts.team2>6) return showLobbyMessage('Maximum team size is 6.',true);
       }
-      if(window.hostConnection) { const ready=hostConnection.connections.filter(c=>c.role!=='observer'); if(ready.some(c=>!c.player)) return showLobbyMessage('Waiting for player connections to be ready.',true); }
+      if(window.hostConnection) { const ready=hostConnection.connections.filter(c=>c.role!=='observer'); if(hostConnection.reconnectReservations.size) return showLobbyMessage('Waiting for disconnected players to reconnect.',true); if(ready.some(c=>!c.player)) return showLobbyMessage('Waiting for player connections to be ready.',true); }
       startGame();
       if(window.hostConnection){
         hostConnection.broadcast(JSON.stringify({campaign:window.parkCampaign||null,startGame:true}));

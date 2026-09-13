@@ -88,8 +88,17 @@ export class ParkRoom extends DurableObject {
     } catch {
       return;
     }
-    if (!payload || payload.t !== "to") return;
+    if (!payload) return;
     const sender = socket.deserializeAttachment();
+    if (payload.t === "kick" && sender?.role === "host") {
+      const guest = this.guests.get(payload.peer);
+      if (guest) {
+        this.guests.delete(payload.peer);
+        guest.close(4002, "session-replaced");
+      }
+      return;
+    }
+    if (payload.t !== "to") return;
     const target =
       sender?.role === "host" ? this.guests.get(payload.peer) : this.host;
     if (!target || target.readyState !== WebSocket.OPEN) return;

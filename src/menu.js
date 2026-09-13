@@ -1,4 +1,5 @@
 function startGame() {
+    window.parkChat?.show();
     const controlsHint=document.getElementById("controlsHint");
     if(controlsHint) controlsHint.hidden=false;
     if(tinyParkMode()==='versus'){

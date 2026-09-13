@@ -24,6 +24,7 @@ function setWasdAliasesEnabled(enabled) {
 }
 
 document.addEventListener("keydown", (e) => {
+  if (window.parkChat?.active || e.target?.id === "chatInput") return;
   if (e.code == "F1") mainGame.renderer.debug = !mainGame.renderer.debug;
   const key = e.key.toLowerCase();
   rawKeys[key] = true;
@@ -35,6 +36,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 document.addEventListener("keyup", (e) => {
+  if (window.parkChat?.active || e.target?.id === "chatInput") return;
   rawKeys[e.key.toLowerCase()] = false;
   refreshKeys();
   if (window.clientConnection) clientConnection.updateHost();
@@ -49,3 +51,10 @@ window.addEventListener("blur", () => {
   preKeys = {};
   if (window.clientConnection) clientConnection.updateHost();
 });
+
+window.releaseParkControls = function () {
+  rawKeys = {};
+  keys = {};
+  preKeys = {};
+  if (window.clientConnection) clientConnection.updateHost();
+};

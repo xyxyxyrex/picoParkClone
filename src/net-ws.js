@@ -54,7 +54,11 @@
       this.e.onConnection();
     }
     _deliver(payload) {
-      if (typeof payload === "string" && payload.length < 4000000)
+      if (
+        !this.closed &&
+        typeof payload === "string" &&
+        payload.length < 4000000
+      )
         this.e.onData(payload);
     }
     _close() {
@@ -85,6 +89,9 @@
       return this.fullyConnected ? this._write(data, true) : false;
     }
     terminate() {
+      const socket = this.peer.socket;
+      if (this.peerId && socket?.readyState === WebSocket.OPEN)
+        socket.send(JSON.stringify({ t: "kick", peer: this.peerId }));
       this._close();
     }
   }
@@ -144,7 +151,15 @@
         }
         this._receive(message);
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
+        if (event.code === 4002) {
+          this.destroyed = true;
+          this._closeAll();
+          return this.emit("error", {
+            type: "session-replaced",
+            message: "This game session continued in another tab.",
+          });
+        }
         /* A Pages/DO HTTP rejection happens before WebSocket open, so there is
          * no relay error frame to decode. Surface that as the same room error
          * the Node relay sends after upgrading the socket. */
@@ -193,7 +208,10 @@
         case "host-gone":
           this.destroyed = true;
           this.guestChannel?._close();
-          return;
+          return this.emit("error", {
+            type: "server-error",
+            message: "Disconnected from host. This room has ended.",
+          });
         case "error":
           this.emit("error", {
             type:
@@ -215,7 +233,13 @@
       this.channels.forEach((channel) => channel._close());
       this.channels.clear();
       this.emit("disconnected");
-      if (this.retry >= 5) return this._closeAll();
+      if (this.retry >= 8) {
+        this._closeAll();
+        return this.emit("error", {
+          type: "server-error",
+          message: "Unable to reconnect. Please reopen the invite link.",
+        });
+      }
       clearTimeout(this.timer);
       this.timer = setTimeout(
         () => {
@@ -226,7 +250,7 @@
           }
           this._connect();
         },
-        Math.min(30000, 1000 * 2 ** this.retry++),
+        Math.min(5000, 500 * 2 ** this.retry++),
       );
     }
     host(preferredId) {

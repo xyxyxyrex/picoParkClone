@@ -1,20 +1,32 @@
 const { test, expect } = require("@playwright/test");
+
+async function peerContexts(browser, count) {
+  const contexts = await Promise.all(
+    Array.from({ length: count }, () => browser.newContext()),
+  );
+  await Promise.all(
+    contexts.map((context) =>
+      context.addInitScript(
+        () =>
+          (window.PARK_PEER_OPTIONS = {
+            host: "localhost",
+            port: 9000,
+            path: "/park",
+            secure: false,
+          }),
+      ),
+    ),
+  );
+  return contexts;
+}
+
 test("delayed, dropped, reordered movement does not rewind; stale input cannot stick", async ({
   browser,
   baseURL,
 }) => {
-  const ctx = await browser.newContext();
-  await ctx.addInitScript(
-    () =>
-      (window.PARK_PEER_OPTIONS = {
-        host: "localhost",
-        port: 9000,
-        path: "/park",
-        secure: false,
-      }),
-  );
-  const host = await ctx.newPage(),
-    client = await ctx.newPage(),
+  const contexts = await peerContexts(browser, 2);
+  const host = await contexts[0].newPage(),
+    client = await contexts[1].newPage(),
     errors = [];
   for (const p of [host, client])
     p.on("pageerror", (e) => errors.push(e.message));
@@ -126,7 +138,7 @@ test("delayed, dropped, reordered movement does not rewind; stale input cannot s
     );
     expect(errors).toEqual([]);
   } finally {
-    await ctx.close();
+    await Promise.all(contexts.map((context) => context.close()));
   }
 });
 
@@ -154,18 +166,9 @@ test("classic clients keep one level instance across repeated start announcement
   browser,
   baseURL,
 }) => {
-  const ctx = await browser.newContext();
-  await ctx.addInitScript(
-    () =>
-      (window.PARK_PEER_OPTIONS = {
-        host: "localhost",
-        port: 9000,
-        path: "/park",
-        secure: false,
-      }),
-  );
-  const host = await ctx.newPage(),
-    client = await ctx.newPage(),
+  const contexts = await peerContexts(browser, 2);
+  const host = await contexts[0].newPage(),
+    client = await contexts[1].newPage(),
     errors = [];
   for (const p of [host, client])
     p.on("pageerror", (e) => errors.push(e.message));
@@ -190,6 +193,6 @@ test("classic clients keep one level instance across repeated start announcement
     expect(await client.evaluate(() => !!mainGame.matter.runner)).toBe(false);
     expect(errors).toEqual([]);
   } finally {
-    await ctx.close();
+    await Promise.all(contexts.map((context) => context.close()));
   }
 });

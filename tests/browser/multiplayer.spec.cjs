@@ -4,22 +4,26 @@ test("real WebRTC room, equal teams, host authority and five-round winner", asyn
   baseURL,
 }) => {
   test.setTimeout(90000);
-  const ctx = await browser.newContext(),
-    host = await ctx.newPage(),
-    client = await ctx.newPage(),
-    teammate = await ctx.newPage(),
-    opponent = await ctx.newPage(),
-    observer = await ctx.newPage(),
-    errors = [];
+  const contexts = await Promise.all(
+    Array.from({ length: 5 }, () => browser.newContext()),
+  );
+  const [host, client, teammate, opponent, observer] = await Promise.all(
+    contexts.map((context) => context.newPage()),
+  );
+  const errors = [];
   if (!process.env.PARK_PUBLIC_SIGNALING)
-    await ctx.addInitScript(
-      () =>
-        (window.PARK_PEER_OPTIONS = {
-          host: "localhost",
-          port: 9000,
-          path: "/park",
-          secure: false,
-        }),
+    await Promise.all(
+      contexts.map((context) =>
+        context.addInitScript(
+          () =>
+            (window.PARK_PEER_OPTIONS = {
+              host: "localhost",
+              port: 9000,
+              path: "/park",
+              secure: false,
+            }),
+        ),
+      ),
     );
   for (const p of [host, client, teammate, opponent, observer])
     p.on("pageerror", (e) => errors.push(e.message));
@@ -165,6 +169,6 @@ test("real WebRTC room, equal teams, host authority and five-round winner", asyn
     );
     expect(errors).toEqual([]);
   } finally {
-    await ctx.close();
+    await Promise.all(contexts.map((context) => context.close()));
   }
 });

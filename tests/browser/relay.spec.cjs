@@ -11,13 +11,12 @@ test("a full 2v2 versus match runs over the WebSocket relay", async ({
   browser,
 }) => {
   test.setTimeout(90000);
-  const ctx = await browser.newContext();
-  const [host, teammate, opponentA, opponentB] = await Promise.all([
-    ctx.newPage(),
-    ctx.newPage(),
-    ctx.newPage(),
-    ctx.newPage(),
-  ]);
+  const contexts = await Promise.all(
+    Array.from({ length: 4 }, () => browser.newContext()),
+  );
+  const [host, teammate, opponentA, opponentB] = await Promise.all(
+    contexts.map((context) => context.newPage()),
+  );
   const errors = [];
   for (const page of [host, teammate, opponentA, opponentB])
     page.on("pageerror", (e) => errors.push(e.message));
@@ -132,7 +131,7 @@ test("a full 2v2 versus match runs over the WebSocket relay", async ({
     ).toBeTruthy();
   } finally {
     expect(errors, errors.join("\n")).toEqual([]);
-    await ctx.close();
+    await Promise.all(contexts.map((context) => context.close()));
   }
 });
 
@@ -153,9 +152,10 @@ test("guests are told when the host leaves rather than freezing silently", async
   browser,
 }) => {
   test.setTimeout(60000);
-  const ctx = await browser.newContext();
-  const host = await ctx.newPage();
-  const guest = await ctx.newPage();
+  const hostContext = await browser.newContext();
+  const guestContext = await browser.newContext();
+  const host = await hostContext.newPage();
+  const guest = await guestContext.newPage();
   await host.goto(RELAY_ORIGIN + "/game?host=true&mode=versus");
   await host.waitForFunction(
     () => window.hostConnection?.roomJoinOnline,
@@ -176,16 +176,17 @@ test("guests are told when the host leaves rather than freezing silently", async
     "Disconnected from host",
     { timeout: 20000 },
   );
-  await ctx.close();
+  await Promise.all([hostContext.close(), guestContext.close()]);
 });
 
 test("the Hold The Line gate latches open instead of needing a player parked on it", async ({
   browser,
 }) => {
   test.setTimeout(90000);
-  const ctx = await browser.newContext();
-  const host = await ctx.newPage();
-  const guest = await ctx.newPage();
+  const hostContext = await browser.newContext();
+  const guestContext = await browser.newContext();
+  const host = await hostContext.newPage();
+  const guest = await guestContext.newPage();
   const errors = [];
   for (const page of [host, guest])
     page.on("pageerror", (e) => errors.push(e.message));
@@ -293,6 +294,6 @@ test("the Hold The Line gate latches open instead of needing a player parked on 
     expect(after.open).toBe(true);
   } finally {
     expect(errors, errors.join("\n")).toEqual([]);
-    await ctx.close();
+    await Promise.all([hostContext.close(), guestContext.close()]);
   }
 });

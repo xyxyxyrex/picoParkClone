@@ -126,6 +126,16 @@ function createServer(options = {}) {
       } catch {
         return;
       }
+      if (message?.t === "kick" && socket.isHost) {
+        const room = rooms.get(socket.roomCode);
+        const guest = room?.guests.get(message.peer);
+        if (guest) {
+          room.removeGuest(message.peer);
+          guest.roomCode = null;
+          guest.close(4002, "session-replaced");
+        }
+        return;
+      }
       if (!message || typeof message !== "object") return;
 
       if (message.t === "host") {

@@ -160,6 +160,18 @@ class Renderer {
         let frame = drawSprite(this, player)
     
         this.ctx.restore()
+        const playerName = String(player.username || "Player").slice(0,18)
+        this.ctx.save()
+        this.ctx.font = "10px Arial, sans-serif"
+        this.ctx.textAlign = "center"
+        this.ctx.textBaseline = "top"
+        this.ctx.lineWidth = 3
+        this.ctx.strokeStyle = "rgba(250,249,246,.92)"
+        this.ctx.fillStyle = "#342e29"
+        const nameY = playerPos.y + spriteSize.y * .5 * player.scale + 7
+        this.ctx.strokeText(playerName, playerPos.x, nameY)
+        this.ctx.fillText(playerName, playerPos.x, nameY)
+        this.ctx.restore()
         this.ctx.fillStyle = "#f0f"
         if (this.debug) {
             this.ctx.fillText(frame, playerPos.x+(spriteSize.x*0.5)+5,playerPos.y-(spriteSize.y*0.5))

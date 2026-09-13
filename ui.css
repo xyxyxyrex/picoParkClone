@@ -283,6 +283,11 @@ button:disabled {
 .game-hud > * {
   pointer-events: auto;
 }
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .hud-box {
   background: #faf9f6eb;
   padding: 8px 10px;
@@ -297,6 +302,87 @@ button:disabled {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+#pingHud {
+  min-width: 78px;
+  text-align: center;
+}
+#pingHud.warning {
+  color: #b24b34;
+}
+.game-notice {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  z-index: 35;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 9px 13px;
+  transform: translate(-50%, -8px);
+  background: rgba(250, 249, 246, 0.92);
+  color: #342e29;
+  font: 11px/1.4 Arial, sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.game-notice.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.game-notice.error {
+  color: #b24b34;
+}
+.game-chat {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 35;
+  width: min(310px, calc(100vw - 36px));
+  padding: 10px;
+  background: rgba(250, 249, 246, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font: 11px/1.35 Arial, sans-serif;
+}
+.game-chat[hidden] {
+  display: none;
+}
+.chat-messages {
+  max-height: 128px;
+  overflow: hidden auto;
+  overflow-wrap: anywhere;
+}
+.chat-message + .chat-message {
+  margin-top: 4px;
+}
+.chat-message strong {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.chat-message.system {
+  color: #746b61;
+  font-style: italic;
+}
+.chat-prompt {
+  margin-top: 7px;
+  color: #746b61;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+}
+.game-chat.typing .chat-prompt {
+  display: none;
+}
+.chat-input {
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  border-top: 1px solid rgba(70, 62, 54, 0.22);
+  border-radius: 0;
+  outline: 0;
+  padding: 8px 2px 1px;
+  background: transparent;
+  color: #342e29;
+  font: 11px/1.2 Arial, sans-serif;
 }
 .score-team.t1 {
   color: #b24b34;
@@ -438,6 +524,17 @@ button:disabled {
     font-size: 9px;
     padding: 6px;
   }
+  .hud-right {
+    gap: 4px;
+  }
+  #pingHud {
+    min-width: 66px;
+  }
+  .game-chat {
+    left: 10px;
+    bottom: 10px;
+    width: min(270px, calc(100vw - 20px));
+  }
   .controls-hint {
     right: 10px;
     bottom: 10px;
@@ -478,8 +575,8 @@ button:disabled {
 .team-world { position:relative; min-width:0; min-height:0; overflow:hidden; }
 .team-world[hidden] { display:none; }
 .team-world canvas { display:block; width:100%; height:100%; }
-.team-world-label { position:absolute; bottom:16px; left:16px; right:16px; width:fit-content; padding:9px 12px; background:#fff9ed; color:#342e29; font:11px/1.5 Arial,sans-serif; }
+.team-world-label { position:absolute; bottom:16px; right:16px; width:fit-content; padding:9px 12px; background:#fff9ed; color:#342e29; font:11px/1.5 Arial,sans-serif; }
 .team-world[data-team="team2"] .team-world-label { border-left:3px solid #428fcd; }
 .team-world[data-team="team1"] .team-world-label { border-left:3px solid #ff7d49; }
-@media(max-width:800px) { #teamWorlds.observing { grid-template-columns:1fr; grid-template-rows:1fr 1fr; } .team-world-label { bottom:8px; left:8px; font-size:10px; } }
+@media(max-width:800px) { #teamWorlds.observing { grid-template-columns:1fr; grid-template-rows:1fr 1fr; } .team-world-label { bottom:8px; right:8px; font-size:10px; } }
 .team-world-label[data-network]:not([data-network=""])::after { content:attr(data-network); display:block; color:#b43b20; font-weight:bold; }

@@ -15,11 +15,11 @@ class Host {
     this.finished = { team1: false, team2: false };
     this.matchWinner = null;
     this.matchStarted = false;
-    /* Keep a disconnected competitor in the match briefly so a transient
-     * network drop does not reset the whole round. The client resumes with
-     * its assigned body id during the handshake. */
-    this.reconnectGraceMs = 15000;
+    /* Keep a disconnected player in the room briefly so a transient drop or
+     * reload can reclaim the same character through its cookie session. */
+    this.reconnectGraceMs = 30000;
     this.reconnectReservations = new Map();
+    this.lastHostChatAt = 0;
   }
   init() {
     /* The relay assigns the room code, so this.id is provisional until open. */
@@ -44,35 +44,106 @@ class Host {
   sendTo(conn, payload) {
     if (conn && conn.fullyConnected) conn.send(JSON.stringify(payload));
   }
+  publishChat(username, text) {
+    const message = {
+      username: String(username || "Player").slice(0, 18),
+      text: String(text || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 160),
+      sentAt: Date.now(),
+    };
+    if (!message.text) return;
+    window.parkChat?.receive(message);
+    this.broadcast(JSON.stringify({ chatMessage: message }));
+  }
+  receiveChat(connection, chat) {
+    const now = performance.now();
+    if (connection.lastChatAt && now - connection.lastChatAt < 500) return;
+    connection.lastChatAt = now;
+    this.publishChat(connection.clientUsername, chat?.text);
+  }
+  sendChat(text) {
+    const now = performance.now();
+    if (this.lastHostChatAt && now - this.lastHostChatAt < 500) return;
+    this.lastHostChatAt = now;
+    this.publishChat(this.username, text);
+  }
+  setSimulationPaused(paused) {
+    this.game.matter.engine.timing.timeScale = paused ? 0 : 1;
+    if (window.versusSession)
+      Object.values(versusSession.games).forEach(
+        (game) => (game.matter.engine.timing.timeScale = paused ? 0 : 1),
+      );
+  }
+  broadcastPresence(type, username) {
+    const safeName = String(username || "A player").slice(0, 18);
+    this.broadcast(JSON.stringify({ presence: { type, username: safeName } }));
+    window.parkChat?.system(
+      `${safeName} ${type === "reconnected" ? "has reconnected" : "has disconnected"}`,
+    );
+  }
+  resumeAfterReconnect() {
+    if (
+      !this.matchStarted ||
+      this.matchWinner ||
+      this.reconnectReservations.size
+    )
+      return;
+    this.setSimulationPaused(false);
+    this.broadcast(JSON.stringify({ matchResumed: true }));
+  }
   closeConnection(conn) {
+    if (conn.closeHandled) return;
+    conn.closeHandled = true;
     const i = this.connections.indexOf(conn);
     if (i >= 0) this.connections.splice(i, 1);
-    const isCompetitor =
-      this.matchStarted &&
+    const canReconnect =
+      !conn.replaced &&
       !this.matchWinner &&
-      (conn.role === "team1" || conn.role === "team2") &&
+      conn.role !== "observer" &&
       conn.player;
-    if (isCompetitor) {
-      const key = this.resumeKey(conn.clientUsername, conn.resumeId);
+    if (canReconnect) {
+      const key = this.resumeKey(
+        conn.sessionId,
+        conn.clientUsername,
+        conn.resumeId,
+      );
       const player = conn.player;
       player.conn = null;
       player.keys = {};
-      const reservation = { key, role: conn.role, player };
+      const previous = this.reconnectReservations.get(key);
+      if (previous) clearTimeout(previous.timer);
+      const reservation = {
+        key,
+        role: conn.role,
+        player,
+        username: conn.clientUsername,
+      };
       reservation.timer = setTimeout(() => {
         if (this.reconnectReservations.get(key) !== reservation) return;
         this.reconnectReservations.delete(key);
         player.unload();
-        this.interruptMatch();
+        if (this.matchStarted) this.interruptMatch();
         this.broadcastLobby();
       }, this.reconnectGraceMs);
       this.reconnectReservations.set(key, reservation);
+      this.broadcastPresence("disconnected", conn.clientUsername);
+      if (this.matchStarted) {
+        this.setSimulationPaused(true);
+        this.broadcast(
+          JSON.stringify({ matchPaused: { username: conn.clientUsername } }),
+        );
+      }
     } else if (conn.player) {
       conn.player.unload();
       conn.player = null;
     }
     this.broadcastLobby();
   }
-  resumeKey(username, playerId) {
+  resumeKey(sessionId, username, playerId) {
+    const session = String(sessionId || "").trim();
+    if (/^[a-f0-9-]{32,64}$/i.test(session)) return `session:${session}`;
     const id = String(playerId || "").trim();
     return id
       ? `id:${id}`
@@ -104,7 +175,7 @@ class Host {
       } catch {
         return;
       }
-      if (d.setUsername) {
+      if (d.setUsername && !connection.identityReady) {
         const announced = d.setUsername;
         const username =
           announced && typeof announced === "object"
@@ -114,35 +185,83 @@ class Host {
           announced && typeof announced === "object"
             ? String(announced.playerId || "").slice(0, 64)
             : "";
+        connection.sessionId =
+          announced && typeof announced === "object"
+            ? String(announced.sessionId || "").slice(0, 64)
+            : "";
         connection.clientUsername = String(username || "Player").slice(0, 18);
         const key = this.resumeKey(
+          connection.sessionId,
           connection.clientUsername,
           connection.resumeId,
         );
+        const active = this.connections.find(
+          (candidate) =>
+            candidate !== connection &&
+            candidate.identityReady &&
+            candidate.sessionId &&
+            candidate.sessionId === connection.sessionId,
+        );
         const reservation = this.reconnectReservations.get(key);
-        if (
-          reservation &&
-          reservation.player &&
-          reservation.role !== "observer"
-        ) {
+        let resumed = null;
+        if (active) {
+          resumed = {
+            role: active.role,
+            player: active.player,
+            active: true,
+          };
+          this.sendTo(active, { sessionReplaced: true });
+          active.replaced = true;
+          active.player = null;
+          this.closeConnection(active);
+          active.terminate();
+        } else if (reservation?.player) {
+          resumed = reservation;
           clearTimeout(reservation.timer);
           this.reconnectReservations.delete(key);
-          connection.role = reservation.role;
-          connection.player = reservation.player;
+        }
+        if (resumed) {
+          connection.role = resumed.role;
+          connection.player = resumed.player || null;
+        }
+        if (connection.player) {
           connection.player.conn = connection;
           connection.player.onlinePlayer = true;
           connection.player.unloading = false;
           connection.player.team = connection.role;
           connection.player.username = connection.clientUsername;
+        }
+        connection.identityReady = true;
+        if (resumed) {
+          const roleLabel =
+            connection.role === "player"
+              ? "the game"
+              : connection.role === "team1"
+                ? "Team 1"
+                : connection.role === "team2"
+                  ? "Team 2"
+                  : "observer mode";
           this.sendTo(connection, {
             roleResult: {
               ok: true,
               role: connection.role,
               reconnected: true,
-              message: `Reconnected to ${connection.role === "team1" ? "Team 1" : "Team 2"}.`,
+              message: resumed.active
+                ? `Session continued in this tab as ${roleLabel}.`
+                : `Reconnected to ${roleLabel}.`,
             },
-            assignedPlayerId: connection.player.body.id,
+            ...(connection.player
+              ? { assignedPlayerId: connection.player.body.id }
+              : {}),
           });
+        }
+        this.sendTo(connection, {
+          handshakeComplete: true,
+          ...(this.matchStarted ? { startGame: true } : {}),
+        });
+        if (resumed && !resumed.active) {
+          this.broadcastPresence("reconnected", connection.clientUsername);
+          this.resumeAfterReconnect();
         }
         this.broadcastLobby();
       }
@@ -151,6 +270,8 @@ class Host {
       if (d.playerReady && connection.player?.body.id === d.playerReady)
         connection.playerReady = d.playerReady;
       if (d.ping) connection.sendLatest(JSON.stringify({ pong: d.ping }));
+      if (d.chat && connection.identityReady)
+        this.receiveChat(connection, d.chat);
       if (d.input && connection.role !== "observer") {
         const input = d.input;
         if (
@@ -181,7 +302,6 @@ class Host {
         roomConfig: { mode: this.mode, maxTeamPlayers: this.maxTeamPlayers },
         lobbyState: this.getLobbyState(),
         campaign: window.parkCampaign || null,
-        ...(this.matchStarted ? { startGame: true } : {}),
       });
     };
     connection.e.onClose = () => this.closeConnection(connection);
