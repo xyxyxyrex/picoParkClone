@@ -85,7 +85,13 @@ class VersusSession {
     window.addEventListener("pagehide", () => this.pause());
   }
   label(game) {
-    game.worldLabel.textContent = `TEAM ${game.options.team === "team1" ? 1 : 2}  /  LEVEL ${game.options.stage} OF 5  |  First teammate through the unlocked exit advances the team`;
+    /* Runs on every snapshot, so only touch the DOM when the text changes. */
+    const bearer = shieldBearerOf(game.players);
+    const hint = bearer
+      ? `${bearer.username || "A teammate"} carries the shield - stay behind them`
+      : "First teammate through the unlocked exit advances the team";
+    const text = `TEAM ${game.options.team === "team1" ? 1 : 2}  /  LEVEL ${game.options.stage} OF 5  |  ${hint}`;
+    if (game.worldLabel.textContent !== text) game.worldLabel.textContent = text;
   }
   load(team, stage) {
     const game = this.games[team];

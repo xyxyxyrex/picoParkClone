@@ -10,4 +10,13 @@
       "database_id": "68a1faaf-81dd-481d-a5e9-3c3d74401f57",
     },
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOMS",
+        "class_name": "ParkRoom",
+        "script_name": "tiny-park-realtime",
+      },
+    ],
+  },
 }

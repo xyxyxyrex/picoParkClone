@@ -62,7 +62,10 @@ class LevelHandler {
         activePlayers.forEach(p=>p.removeShield());
         if(!levelData.campaign){
             if(levelData.playersBinded&&activePlayers.length>1)this.game.bindPlayers(activePlayers);
-            if(levelData.shieldRule&&activePlayers.length)activePlayers.slice().sort((a,b)=>String(a.body.id).localeCompare(String(b.body.id)))[0].hasShield[levelData.shieldRule.direction||2]=true;
+            // Rotate across stages and retries so the same player is not always
+            // the escort; the world label names whoever it lands on.
+            if(levelData.shieldRule&&activePlayers.length)
+                this.game.shieldBearer=assignShieldBearer(activePlayers,levelData.shieldRule,(this.game.options.stage||1)+(this.game.revision||0));
             if(levelData.playersHaveShields&&!window.clientConnection)levelData.playersHaveShields.forEach((shield,i)=>{if(activePlayers.length)activePlayers[i%activePlayers.length].hasShield[shield]=true;});
             activePlayers.forEach((player,i)=>{
                 if(levelData.spawn){player.dead=false;player.ready=false;player.body.isStatic=false;Matter.Body.setPosition(player.body,v(levelData.spawn.x*50,levelData.spawn.y*50-(i*spriteSize.y)));Matter.Body.setVelocity(player.body,v(0,0));}

@@ -21,13 +21,16 @@
     return map;
   };
   const pos=(x,y)=>({x,y});
+  /* Evenly spaced switch columns, so a team has to spread out to cover them. */
+  const spread=(count,first,last)=>Array.from({length:count},(_,i)=>
+    count<2?first:Math.round(first+((last-first)*i)/(count-1)));
 
   const CAMPAIGN_TEMPLATE_CONFIG={
     level1:{name:'Stack School',baseWidth:22,height:13,wallX:8},
     level2:{name:'Tether Trouble',baseWidth:27,height:13,firstGapX:7},
     level3:{name:'Shield Relay',baseWidth:29,height:13,laserStartX:20},
-    level4:{name:'Hold The Line',baseWidth:31,height:13,gateX:14},
-    level5:{name:'Final Exam',baseWidth:38,height:14,gateX:24}
+    level4:{name:'Hold The Line',baseWidth:33,height:13,gateX:16},
+    level5:{name:'Final Exam',baseWidth:34,height:14,gateX:22}
   };
 
   function baseStage(id,n,w,h){
@@ -37,11 +40,17 @@
   function level1(rawCount){
     const n=clampCount(rawCount),c=CAMPAIGN_TEMPLATE_CONFIG.level1;
     const w=c.baseWidth+n*2,h=c.height,g=h-2,s=baseStage('level1',n,w,h);
-    const wallX=c.wallX+Math.floor(n/3),wallHeight=n===1?2:Math.min(n,2+Math.ceil(n/2));
-    fill(s.map,wallX,g-wallHeight,2,wallHeight,1);fill(s.map,wallX,g-wallHeight,5,1,1);
-    if(n===1)fill(s.map,wallX-2,g-1,1,1,1);
+    const wallX=c.wallX+Math.floor(n/3);
+    // The ledge used to rise with the team, so six players faced a five-high
+    // tower. Two people boosting is the lesson; balancing a tower is not, and a
+    // group that has never played a platformer stalls on the first stage.
+    const wallHeight=n<=3?2:3;
+    fill(s.map,wallX,g-wallHeight,2,wallHeight,1);
+    fill(s.map,wallX,g-wallHeight,5+n,1,1);
+    // A staging step at every size: the first hop is never from flat ground.
+    fill(s.map,wallX-2,g-1,1,1,1);
     s.keys.push({pos:pos(wallX+4,g-wallHeight-1)});s.doors.push({pos:pos(w-3,g),acceptsKey:true,checkpoint:true});
-    s.description=`Stack to the key. The ledge rises with party size (${n}P).`;return s;
+    s.description=`Boost a teammate onto the ${wallHeight}-high ledge for the key (${n}P).`;return s;
   }
 
   function level2(rawCount){
@@ -68,25 +77,36 @@
   function level4(rawCount){
     const n=clampCount(rawCount),c=CAMPAIGN_TEMPLATE_CONFIG.level4;
     const w=c.baseWidth+n,h=c.height,g=h-2,s=baseStage('level4',n,w,h),gateX=c.gateX;
-    fill(s.map,gateX-1,0,3,g-4,1);
-    s.doors.push({id:'hold-gate',pos:pos(gateX,g),acceptsKey:false,checkpoint:false,blocking:true,gate:true});
-    s.buttons.push({id:'near-switch',pos:pos(gateX-5,g-1),gateId:'hold-gate',mode:'any'});
-    if(n>1)s.buttons.push({id:'far-switch',pos:pos(gateX+5,g-1),gateId:'hold-gate',mode:'any'});else s.blocks.push({pos:pos(gateX-8,g-1),size:pos(1,1),minPlayers:1});
+    // Seal the doorway to the ceiling: the gate collider only covers the two
+    // tiles above the floor, so a shorter wall left an open lane beside it.
+    fill(s.map,gateX-1,0,3,g-2,1);
+    // One switch held by one player meant somebody stood still for the whole
+    // stage while everyone else walked past -- reliably the quietest person in
+    // the room. Every player now presses at the same moment and the gate latches
+    // open for good, so the coordination is the level and nobody is parked.
+    s.doors.push({id:'hold-gate',pos:pos(gateX,g),acceptsKey:false,checkpoint:false,blocking:true,gate:true,latch:true});
+    spread(n,3,gateX-2).forEach((x,i)=>s.buttons.push({id:`hold-${i}`,pos:pos(x,g-1),gateId:'hold-gate',mode:'all',required:n}));
     s.keys.push({pos:pos(w-8,g-3)});s.doors.push({pos:pos(w-3,g),acceptsKey:true,checkpoint:true});
-    s.description=n>1?'Leave one player on the near switch, hand the hold to the far switch, then regroup.':'Push the weight onto the switch so the single-player lane remains solvable.';return s;
+    s.description=n>1?`Hold all ${n} switches at the same moment. The gate then stays open -- count it down together.`:'Stand on the switch to unlock the gate for good.';return s;
   }
 
   function level5(rawCount){
     const n=clampCount(rawCount),c=CAMPAIGN_TEMPLATE_CONFIG.level5;
-    const w=c.baseWidth+n*2,h=c.height,g=h-2,s=baseStage('level5',n,w,h),gap=2+Math.floor(n/3),gateX=c.gateX+Math.floor(n/2);
-    clear(s.map,8,g,gap,2);clear(s.map,15+gap,g,Math.max(2,gap-1),2);if(n===1)s.jumppads.push(pos(7,g+1),pos(14+gap,g+1));
-    s.blocks.push({pos:pos(12+gap,g-2),size:pos(Math.max(1,Math.ceil(n/2)),1),minPlayers:Math.max(1,Math.ceil(n/2))});
-    s.lasers.push({pos:pos(gateX-3,g-3),angle:2});s.shieldRule={type:'onePerTeam',direction:2};
-    fill(s.map,gateX-1,0,3,g-5,1);s.doors.push({id:'final-gate',pos:pos(gateX,g),acceptsKey:false,checkpoint:false,blocking:true,gate:true});
-    const required=n===1?1:2;s.buttons.push({id:'final-a',pos:pos(gateX-7,g-1),gateId:'final-gate',mode:'all',required});if(required===2)s.buttons.push({id:'final-b',pos:pos(gateX-4,g-1),gateId:'final-gate',mode:'all',required});
-    const stackHeight=n===1?2:Math.min(n,2+Math.floor(n/2));fill(s.map,w-11,g-stackHeight,3,stackHeight,1);
+    const w=c.baseWidth+n,h=c.height,g=h-2,s=baseStage('level5',n,w,h),gateX=c.gateX;
+    // Was five mechanics deep -- pits, weighted block, shielded laser, switches
+    // and a tower. One team stalling on a finale that long stalls the event, and
+    // the death pits supplied most of the stalling. Three cooperative beats now,
+    // none of them a precision jump: push, synchronise, boost.
+    const pushers=Math.max(2,Math.ceil(n/2));
+    s.blocks.push({pos:pos(6,g-1),size:pos(pushers,1),minPlayers:Math.min(n,pushers)});
+    fill(s.map,gateX-1,0,3,g-2,1);
+    s.doors.push({id:'final-gate',pos:pos(gateX,g),acceptsKey:false,checkpoint:false,blocking:true,gate:true,latch:true});
+    spread(n,10,gateX-2).forEach((x,i)=>s.buttons.push({id:`final-${i}`,pos:pos(x,g-1),gateId:'final-gate',mode:'all',required:n}));
+    const stackHeight=n<=3?2:3;
+    fill(s.map,w-11,g-stackHeight,3,stackHeight,1);
+    fill(s.map,w-13,g-1,1,1,1);
     s.keys.push({pos:pos(w-9,g-stackHeight-1)});s.doors.push({pos:pos(w-3,g),acceptsKey:true,checkpoint:true,finish:true});
-    s.description='Final exam: pits, a weighted block, shielded laser crossing, simultaneous switches, then a last stack to the key.';return s;
+    s.description=`Shove the weight clear, hold all ${n} switches at once, then boost someone to the key.`;return s;
   }
 
   const builders={level1,level2,level3,level4,level5};
