@@ -2,6 +2,42 @@ const { test, expect } = require("@playwright/test");
 
 const RELAY_ORIGIN = process.env.PARK_RELAY_ORIGIN || "http://localhost:8789";
 
+test("a direct invite asks for a name before connecting", async ({
+  browser,
+}) => {
+  const hostContext = await browser.newContext();
+  const guestContext = await browser.newContext();
+  await hostContext.addInitScript(() =>
+    localStorage.setItem("username", "Host"),
+  );
+  const host = await hostContext.newPage();
+  const guest = await guestContext.newPage();
+  try {
+    await host.goto(`${RELAY_ORIGIN}/game?host=true`);
+    await host.waitForFunction(() => window.hostConnection?.roomJoinOnline);
+    const code = (await host.locator("#roomCode").textContent()).trim();
+
+    await guest.goto(`${RELAY_ORIGIN}/game?join=${code}`);
+    await expect(guest.locator("#directJoinNameDialog")).toBeVisible();
+    expect(await guest.evaluate(() => window.clientConnection)).toBeUndefined();
+    await guest.locator("#directJoinName").fill("Jordan");
+    await guest.locator("#directJoinNameForm button[type=submit]").click();
+    await guest.waitForFunction(
+      () => window.clientConnection?.mainConn?.fullyConnected,
+    );
+    await host.waitForFunction(
+      () =>
+        hostConnection.connections.length === 1 &&
+        hostConnection.connections[0].clientUsername === "Jordan",
+    );
+    expect(await guest.evaluate(() => localStorage.getItem("username"))).toBe(
+      "Jordan",
+    );
+  } finally {
+    await Promise.all([hostContext.close(), guestContext.close()]);
+  }
+});
+
 test("one cookie owns one player across tabs and reconnects with chat intact", async ({
   browser,
 }) => {

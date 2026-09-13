@@ -5,10 +5,7 @@ class Client {
     this.roomConn = null;
     this.mainConn = null;
     this.recentPing = 0;
-    this.username = (localStorage.getItem("username") || "unnamed").slice(
-      0,
-      18,
-    );
+    this.username = (localStorage.getItem("username") || "Player").slice(0, 18);
     this.role = "player";
     this.mode = "classic";
     this.maxTeamPlayers = 6;

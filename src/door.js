@@ -68,6 +68,10 @@ class Door {
 
             if(this.game.options.team){
                 if(window.clientConnection || this.roundLocked || e.player.dead) return;
+                e.player.readyUp(this.trigger.rect.position);
+                const activePlayers=this.game.players.filter(player=>
+                    !player.observer && !player.unloading && this.playerAllowed(player));
+                if(!activePlayers.length || !activePlayers.every(player=>player.ready)) return;
                 this.roundLocked=true;
                 const stage=this.campaignStage, revision=this.game.revision;
                 setTimeout(()=>{if(this.game.revision===revision)hostConnection.completeStage(this.team,stage);},220);

@@ -7,12 +7,23 @@ const { test, expect } = require("@playwright/test");
  */
 const RELAY_ORIGIN = process.env.PARK_RELAY_ORIGIN || "http://localhost:8789";
 
+async function namedContext(browser, name) {
+  const context = await browser.newContext();
+  await context.addInitScript(
+    (value) => localStorage.setItem("username", value),
+    name,
+  );
+  return context;
+}
+
 test("a full 2v2 versus match runs over the WebSocket relay", async ({
   browser,
 }) => {
   test.setTimeout(90000);
   const contexts = await Promise.all(
-    Array.from({ length: 4 }, () => browser.newContext()),
+    Array.from({ length: 4 }, (_, index) =>
+      namedContext(browser, `Relay Player ${index + 1}`),
+    ),
   );
   const [host, teammate, opponentA, opponentB] = await Promise.all(
     contexts.map((context) => context.newPage()),
@@ -119,6 +130,40 @@ test("a full 2v2 versus match runs over the WebSocket relay", async ({
     );
     await opponentA.keyboard.up("ArrowRight");
 
+    /* The exit waits for the whole team, then advances once the last player enters. */
+    await host.evaluate(() => {
+      const game = versusSession.games.team1;
+      const door = game.doors.find((candidate) => candidate.checkpoint);
+      const key = game.entities[0];
+      key.pos = {
+        x: door.trigger.rect.position.x,
+        y: door.trigger.rect.position.y - 45,
+      };
+      key.vel = { x: 0, y: 0 };
+      const first = hostConnection.getTeamPlayers("team1")[0];
+      Matter.Body.setPosition(first.body, { ...door.trigger.rect.position });
+      Matter.Body.setVelocity(first.body, { x: 0, y: 0 });
+    });
+    await host.waitForFunction(() =>
+      hostConnection.getTeamPlayers("team1").some((player) => player.ready),
+    );
+    await host.waitForTimeout(350);
+    expect(await host.evaluate(() => hostConnection.progress.team1)).toBe(1);
+    await host.evaluate(() => {
+      const game = versusSession.games.team1;
+      const door = game.doors.find((candidate) => candidate.checkpoint);
+      hostConnection
+        .getTeamPlayers("team1")
+        .filter((player) => !player.ready)
+        .forEach((player) => {
+          Matter.Body.setPosition(player.body, {
+            ...door.trigger.rect.position,
+          });
+          Matter.Body.setVelocity(player.body, { x: 0, y: 0 });
+        });
+    });
+    await host.waitForFunction(() => hostConnection.progress.team1 === 2);
+
     expect(
       await host.evaluate(() => clientConnection?.recentPing ?? null),
     ).toBe(null);
@@ -138,7 +183,7 @@ test("a full 2v2 versus match runs over the WebSocket relay", async ({
 test("a wrong room code reports itself instead of hanging", async ({
   browser,
 }) => {
-  const ctx = await browser.newContext();
+  const ctx = await namedContext(browser, "Wrong Room Player");
   const page = await ctx.newPage();
   await page.goto(RELAY_ORIGIN + "/game?join=ZZZZ");
   await expect(page.locator("#join #lobbyMessage")).toContainText(
@@ -152,8 +197,8 @@ test("guests are told when the host leaves rather than freezing silently", async
   browser,
 }) => {
   test.setTimeout(60000);
-  const hostContext = await browser.newContext();
-  const guestContext = await browser.newContext();
+  const hostContext = await namedContext(browser, "Host");
+  const guestContext = await namedContext(browser, "Guest");
   const host = await hostContext.newPage();
   const guest = await guestContext.newPage();
   await host.goto(RELAY_ORIGIN + "/game?host=true&mode=versus");
@@ -183,8 +228,8 @@ test("the Hold The Line gate latches open instead of needing a player parked on 
   browser,
 }) => {
   test.setTimeout(90000);
-  const hostContext = await browser.newContext();
-  const guestContext = await browser.newContext();
+  const hostContext = await namedContext(browser, "Host");
+  const guestContext = await namedContext(browser, "Guest");
   const host = await hostContext.newPage();
   const guest = await guestContext.newPage();
   const errors = [];

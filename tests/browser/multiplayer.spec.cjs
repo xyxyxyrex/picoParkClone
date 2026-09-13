@@ -11,6 +11,14 @@ test("real WebRTC room, equal teams, host authority and five-round winner", asyn
     contexts.map((context) => context.newPage()),
   );
   const errors = [];
+  await Promise.all(
+    contexts.map((context, index) =>
+      context.addInitScript(
+        (name) => localStorage.setItem("username", name),
+        `WebRTC Player ${index + 1}`,
+      ),
+    ),
+  );
   if (!process.env.PARK_PUBLIC_SIGNALING)
     await Promise.all(
       contexts.map((context) =>
@@ -137,6 +145,29 @@ test("real WebRTC room, equal teams, host authority and five-round winner", asyn
           Matter.Body.setVelocity(p.body, { x: 0, y: 0 });
         }
       }, stage);
+      await host.waitForTimeout(350);
+      expect(await host.evaluate(() => hostConnection.progress.team1)).toBe(
+        stage,
+      );
+      await host.evaluate(() => {
+        const game = versusSession.games.team1;
+        const door = game.doors.find(
+          (candidate) =>
+            candidate.checkpoint &&
+            candidate.team === "team1" &&
+            candidate.campaignStage === game.options.stage,
+        );
+        hostConnection
+          .getTeamPlayers("team1")
+          .filter((player) => !player.ready)
+          .forEach((player) => {
+            Matter.Body.setPosition(player.body, {
+              ...door.trigger.rect.position,
+            });
+            player.keys = {};
+            Matter.Body.setVelocity(player.body, { x: 0, y: 0 });
+          });
+      });
       if (stage < 5)
         await host.waitForFunction(
           (s) => hostConnection.progress.team1 === s + 1,

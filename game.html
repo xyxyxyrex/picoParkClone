@@ -43,6 +43,20 @@
     <input id="chatInput" class="chat-input" maxlength="160" autocomplete="off" aria-label="Chat message" placeholder="MESSAGE" hidden>
   </section>
 
+  <dialog id="directJoinNameDialog" class="menu-dialog">
+    <form id="directJoinNameForm">
+      <header class="dialog-heading">
+        <h2>JOIN ROOM</h2>
+      </header>
+      <p class="pixel-status">Enter the name your teammates will see.</p>
+      <label class="pixel-label">YOUR NAME<input id="directJoinName" class="pixel-input" maxlength="18" required autocomplete="nickname" placeholder="Player"></label>
+      <div class="pixel-row">
+        <button class="pixel-btn" type="submit">CONTINUE</button>
+        <a class="pixel-btn secondary" href="./index.html">BACK</a>
+      </div>
+    </form>
+  </dialog>
+
   <aside id="controlsHint" class="controls-hint" hidden aria-label="Movement controls">
     <div class="controls-hint-title">CONTROLS</div>
     <div class="controls-hint-row"><span>MOVE</span><span class="controls-keys"><kbd>A</kbd><kbd>D</kbd><small>or</small><kbd>←</kbd><kbd>→</kbd></span></div>
@@ -186,6 +200,29 @@
 
     function startMainGame(){ mainGame.testInit(); mainGame.initRender(); }
 
+    function requestDirectJoinName(){
+      if(!urlData.join) return Promise.resolve();
+      let saved='';
+      try{saved=(localStorage.getItem('username')||'').trim().slice(0,18);}catch{}
+      if(saved && saved.toLowerCase()!=='unnamed') return Promise.resolve();
+      const dialog=document.getElementById('directJoinNameDialog');
+      const form=document.getElementById('directJoinNameForm');
+      const input=document.getElementById('directJoinName');
+      return new Promise(resolve=>{
+        dialog.addEventListener('cancel',event=>event.preventDefault());
+        form.addEventListener('submit',event=>{
+          event.preventDefault();
+          const name=input.value.trim().slice(0,18);
+          if(!name){input.focus();return;}
+          try{localStorage.setItem('username',name);}catch{}
+          dialog.close();
+          resolve();
+        },{once:true});
+        dialog.showModal();
+        requestAnimationFrame(()=>input.focus());
+      });
+    }
+
     document.getElementById('restartLevel').addEventListener('click',e=>{
       e.preventDefault();
       if(window.versusSession){versusSession.restart();return;}
@@ -217,12 +254,14 @@
       _loadFont('squareforced');
       if(urlData.host) document.getElementById('host').style.display='';
       else if(urlData.join) document.getElementById('join').style.display='';
+      const nameReady=requestDirectJoinName();
       try {
         const response=await fetch('/api/levels');
         if(response.ok && response.headers.get('content-type')?.includes('application/json')) {
           const live=await response.json(); if(live.campaign) window.parkCampaign=ParkData.validate(live.campaign,true);
         }
       } catch { showLobbyMessage('Live levels unavailable. Using built-in campaign.'); }
+      await nameReady;
       initGame();
 
 

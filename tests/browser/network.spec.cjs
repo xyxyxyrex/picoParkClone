@@ -5,15 +5,18 @@ async function peerContexts(browser, count) {
     Array.from({ length: count }, () => browser.newContext()),
   );
   await Promise.all(
-    contexts.map((context) =>
+    contexts.map((context, index) =>
       context.addInitScript(
-        () =>
-          (window.PARK_PEER_OPTIONS = {
+        (name) => {
+          localStorage.setItem("username", name);
+          window.PARK_PEER_OPTIONS = {
             host: "localhost",
             port: 9000,
             path: "/park",
             secure: false,
-          }),
+          };
+        },
+        `Network Player ${index + 1}`,
       ),
     ),
   );
