@@ -25,6 +25,21 @@ class Key extends Entity {
         this.stage = options&&options.stage||null;
         this.unload = false;
     }
+    resetToSpawn(){
+        this.pos={...this.ogPos};
+        this.vel=v();
+        this.followingPlayer=undefined;
+        this.targetedDoor=undefined;
+        this.positionUnlocked=false;
+    }
+    touchesPlayer(player){
+        if(!this.playerAllowed(player)||player.dead||player.unloading||!player.body) return false;
+        const current=player.body.position,previous=player.body.positionPrev||current;
+        const dx=current.x-previous.x,dy=current.y-previous.y,lengthSquared=(dx*dx)+(dy*dy);
+        const progress=lengthSquared?Math.max(0,Math.min(1,(((this.pos.x-previous.x)*dx)+((this.pos.y-previous.y)*dy))/lengthSquared)):0;
+        const closest=v(previous.x+(dx*progress),previous.y+(dy*progress));
+        return getDst(closest,this.pos)<Math.max(48,58*player.scale);
+    }
     playerAllowed(player){
         if(!player||player.observer) return false;
         if(this.team && player.team!==this.team) return false;
@@ -45,13 +60,14 @@ class Key extends Entity {
 
         if (!this.targetedDoor) {
             if (this.followingPlayer) {
-                if(!this.playerAllowed(this.followingPlayer)){ this.followingPlayer=undefined; return; }
+                if(!this.playerAllowed(this.followingPlayer)){ this.resetToSpawn(); return; }
                 const newPos = v(this.followingPlayer.body.position.x,this.followingPlayer.body.position.y-(45*this.followingPlayer.scale));
                 const rawDst = getDst(newPos, this.pos);
-                const dst = Math.min(Math.pow(Math.max(rawDst-(55*this.followingPlayer.scale),0),1.2)*0.01, 0.3);
-                const angle = -getAngle(newPos, this.pos)+(Math.PI*0.5);
-                if (rawDst>300) this.followingPlayer = undefined;
-                else { this.vel.x += Math.cos(angle)*dst; this.vel.y += Math.sin(angle)*dst; }
+                const pull=rawDst>140?.72:.42;
+                this.pos.x+=(newPos.x-this.pos.x)*pull;
+                this.pos.y+=(newPos.y-this.pos.y)*pull;
+                this.vel.x=this.followingPlayer.body.velocity.x*.25;
+                this.vel.y=this.followingPlayer.body.velocity.y*.25;
             } else {
                 const rawDst = getDst(this.ogPos, this.pos);
                 const dst = Math.min(Math.pow(rawDst,1.2)*0.02, 0.4);
@@ -59,7 +75,7 @@ class Key extends Entity {
                 this.vel.x += Math.cos(angle)*dst;
                 this.vel.y += Math.sin(angle)*dst;
                 this.game.players.forEach(e=>{
-                    if(this.playerAllowed(e) && getDst(e.body.position, this.pos)<45){ this.positionUnlocked=true; this.followingPlayer=e; }
+                    if(!this.followingPlayer&&this.touchesPlayer(e)){ this.positionUnlocked=true; this.followingPlayer=e; }
                 });
             }
             this.game.doors.forEach(e=>{

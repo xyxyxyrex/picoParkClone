@@ -75,6 +75,67 @@ test("one-block player clears one-block ledges but cannot climb a two-block wall
   expect(results.stacked.landed).toBe(true);
 });
 
+test("a key catches high-speed contact and stays tightly attached", async ({ page }) => {
+  await page.goto("/test");
+  const state = await page.evaluate(() => {
+    const g = new Game();
+    const player = g.playerhandler.addPlayer({});
+    const key = new Key(g, v(200, 200), {});
+    g.entities.push(key);
+
+    Matter.Body.setPosition(player.body, v(300, 200));
+    player.body.positionPrev.x = 100;
+    player.body.positionPrev.y = 200;
+    key.update();
+
+    let farthest = 0;
+    for (let i = 0; i < 18; i++) {
+      Matter.Body.setPosition(player.body, v(300 + i * 18, 200 - i * 28));
+      Matter.Body.setVelocity(player.body, v(18, -28));
+      key.update();
+      const target = v(player.body.position.x, player.body.position.y - 45 * player.scale);
+      farthest = Math.max(farthest, getDst(target, key.pos));
+    }
+    return { attached: key.followingPlayer === player, farthest };
+  });
+
+  expect(state.attached).toBe(true);
+  expect(state.farthest).toBeLessThan(70);
+});
+
+test("a carried key returns to its spawn when its player resets", async ({ page }) => {
+  await page.goto("/test");
+  const state = await page.evaluate(() => {
+    function trial(kind) {
+      const g = new Game();
+      g.renderer.levelBounds = { pos: v(-25, -25), size: v(600, 400) };
+      g.renderer.offset = v();
+      g.levelHandler.currentLevel = {
+        spawn: { x: 2, y: 2 },
+        cellsize: v(50, 50),
+        boundaries: kind === "boundary" ? [{ pos: v(4, 5), size: v(3, 1) }] : [],
+      };
+      const player = g.playerhandler.addPlayer({});
+      const key = new Key(g, v(350, 100), {});
+      g.entities.push(key);
+      key.followingPlayer = player;
+      key.pos = v(500, 300);
+      key.vel = v(12, -18);
+      Matter.Body.setPosition(player.body, kind === "boundary" ? v(250, 250) : v(250, 700));
+      player.updatePlayerParts();
+      player.testFalling();
+      return { pos: { ...key.pos }, vel: { ...key.vel }, released: !key.followingPlayer };
+    }
+    return { boundary: trial("boundary"), fall: trial("fall") };
+  });
+
+  for (const result of [state.boundary, state.fall]) {
+    expect(result.pos).toEqual({ x: 350, y: 100 });
+    expect(result.vel).toEqual({ x: 0, y: 0 });
+    expect(result.released).toBe(true);
+  }
+});
+
 test("open gates leave the collision world and closed gates restore their blocker", async ({
   page,
 }) => {

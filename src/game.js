@@ -95,6 +95,12 @@ class Game {
       if (ent.unload) this.entities.splice(i, 1);
     }
   }
+  resetKeysForPlayer(player) {
+    this.entities.forEach((entity) => {
+      if (entity.followingPlayer === player && entity.resetToSpawn)
+        entity.resetToSpawn();
+    });
+  }
   testInit() {
     this.initPhysics();
     this.syncHandler.addControl(

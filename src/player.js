@@ -222,6 +222,7 @@ class Player {
 
     }
     restart(i=0) {
+        this.game.resetKeysForPlayer&&this.game.resetKeysForPlayer(this)
         this.dead = false
         this.ready = false
         this.body.isStatic = false
