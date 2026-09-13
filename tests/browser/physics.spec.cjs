@@ -249,6 +249,67 @@ test("tether is slack inside its rest length and pulls both players symmetricall
   expect(state.maxLength).toBe(150);
 });
 
+test("four tethered players overpower two without stretching or resetting the rope", async ({
+  page,
+}) => {
+  await page.goto("/test");
+  const result = await page.evaluate(() => {
+    function tug(leftCount, rightCount) {
+      const g = new Game();
+      g.renderer.levelBounds = { pos: v(), size: v(4000, 1200) };
+      g.updateDelta = () => (g.deltaTime = 1);
+      Matter.Composite.add(
+        g.matter.engine.world,
+        Matter.Bodies.rectangle(1000, 525, 3000, 50, { isStatic: true }),
+      );
+      const players = Array.from({ length: leftCount + rightCount }, (_, i) => {
+        const player = g.playerhandler.addPlayer({});
+        Matter.Body.setPosition(player.body, v(400 + i * 55, 475));
+        player.updatePlayerParts();
+        player.keys = i < leftCount ? { arrowleft: true } : { arrowright: true };
+        return player;
+      });
+      g.bindPlayers(players);
+      g.initPhysics();
+      Matter.Runner.stop(g.matter.runner);
+      for (let i = 0; i < 15; i++)
+        Matter.Engine.update(g.matter.engine, 1000 / 60);
+      const centerBefore =
+        players.reduce((sum, player) => sum + player.body.position.x, 0) /
+        players.length;
+      let longestLink = 0;
+      for (let i = 0; i < 180; i++) {
+        Matter.Engine.update(g.matter.engine, 1000 / 60);
+        longestLink = Math.max(
+          longestLink,
+          ...g.constraints.map((link) =>
+            Math.hypot(
+              link.bodyB.body.position.x - link.bodyA.body.position.x,
+              link.bodyB.body.position.y - link.bodyA.body.position.y,
+            ),
+          ),
+        );
+      }
+      const centerAfter =
+        players.reduce((sum, player) => sum + player.body.position.x, 0) /
+        players.length;
+      return {
+        delta: centerAfter - centerBefore,
+        longestLink,
+        reset: g.lastTetherResetReason || null,
+      };
+    }
+    return { majorityRight: tug(2, 4), balanced: tug(3, 3) };
+  });
+
+  expect(result.majorityRight.delta).toBeGreaterThan(100);
+  expect(Math.abs(result.balanced.delta)).toBeLessThan(5);
+  expect(result.majorityRight.longestLink).toBeLessThanOrEqual(150.5);
+  expect(result.balanced.longestLink).toBeLessThanOrEqual(150.5);
+  expect(result.majorityRight.reset).toBeNull();
+  expect(result.balanced.reset).toBeNull();
+});
+
 test("tether order follows roster indices instead of Matter body ids", async ({
   page,
 }) => {

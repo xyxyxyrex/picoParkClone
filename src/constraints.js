@@ -21,6 +21,31 @@ class ConstraintHandler {
     for (let i = 0; i < this.game.constraints.length; i++) {
       if (this.updateConstraint(this.game.constraints[i]) === "reset") break;
     }
+    // Player walking is position-based, so force alone cannot enforce a hard
+    // rope length. Repeated symmetric corrections keep the chain together
+    // without changing its center of mass or favoring either end.
+    for (let pass = 0; pass < 12; pass++)
+      for (const link of this.game.constraints) this.enforceMaxLength(link);
+  }
+
+  enforceMaxLength(link) {
+    const playerA = link.bodyA;
+    const playerB = link.bodyB;
+    if (!this.isActive(playerA) || !this.isActive(playerB)) return;
+    const bodyA = playerA.body;
+    const bodyB = playerB.body;
+    const dx = bodyB.position.x - bodyA.position.x;
+    const dy = bodyB.position.y - bodyA.position.y;
+    const distance = Math.hypot(dx, dy);
+    if (!Number.isFinite(distance) || distance <= link.maxLength) return;
+    const halfCorrection = (distance - link.maxLength) * 0.5;
+    const correction = {
+      x: (dx / distance) * halfCorrection,
+      y: (dy / distance) * halfCorrection,
+    };
+    Matter.Body.translate(bodyA, correction);
+    Matter.Body.translate(bodyB, { x: -correction.x, y: -correction.y });
+    link.distance = link.maxLength;
   }
 
   updateConstraint(link) {
