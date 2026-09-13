@@ -61,8 +61,6 @@ class Particle {
         this.image.pos = targetPos
         this.image.size = randSize
 
-        console.log(this.image)
-
         this.options = options
 
         let size = 5

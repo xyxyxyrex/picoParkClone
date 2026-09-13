@@ -79,7 +79,6 @@ class MatterHandler {
       },
       ...options,
     });
-    console.log(pos);
     Matter.Body.setPosition(rect, pos);
     Matter.Composite.add(comp, rect);
 

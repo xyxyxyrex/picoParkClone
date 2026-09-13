@@ -166,7 +166,6 @@ class Player {
 
                 this.giveShield(num)
             } else if (this.preHasShield[num]&&!this.hasShield[num]) {
-                console.log(this.laserShields)
                 if (this.laserShields[num]!=undefined) {
                     Matter.Composite.remove(this.game.matter.engine.world,this.laserShields[num])
                     this.laserShields[num] = undefined
@@ -192,7 +191,6 @@ class Player {
         laserShield.laserShieldPos = rotate(0,0, -50,0,angle*Math.PI*0.5)
         Matter.Composite.add(this.game.matter.engine.world, laserShield)
         this.laserShields[angle] =(laserShield)
-        console.log(this.laserShields)
     
     }
     removeShield() {
