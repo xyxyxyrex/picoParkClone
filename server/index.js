@@ -31,8 +31,9 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-function createServer() {
+function createServer(options = {}) {
   const rooms = new RoomRegistry();
+  const staticDir = options.staticDir || STATIC_DIR;
 
   const httpServer = http.createServer((request, response) => {
     if (request.url === "/healthz") {
@@ -40,14 +41,21 @@ function createServer() {
       response.end(JSON.stringify({ ok: true, rooms: rooms.count }));
       return;
     }
-    if (!STATIC_DIR) {
+    if (!staticDir) {
       response.writeHead(404).end("Not found");
       return;
     }
-    const requested = decodeURIComponent((request.url || "/").split("?")[0]);
+    let requested;
+    try {
+      requested = decodeURIComponent((request.url || "/").split("?")[0]);
+    } catch {
+      response.writeHead(400).end("Bad request");
+      return;
+    }
     const relative = requested === "/" ? "/index.html" : requested;
-    const target = path.join(STATIC_DIR, path.normalize(relative));
-    if (!target.startsWith(STATIC_DIR)) {
+    const target = path.resolve(staticDir, `.${path.normalize(relative)}`);
+    const relativeTarget = path.relative(path.resolve(staticDir), target);
+    if (relativeTarget.startsWith("..") || path.isAbsolute(relativeTarget)) {
       response.writeHead(403).end("Forbidden");
       return;
     }

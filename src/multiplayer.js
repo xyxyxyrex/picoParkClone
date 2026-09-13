@@ -85,7 +85,9 @@ function parkHostRoom(preferredId, onOpen, onChannel) {
 function parkJoinRoom(roomId, onChannel) {
   const peer = createParkPeer();
   if (peer instanceof ParkWsPeer) {
-    onChannel(peer.connect(roomId));
+    const channel = peer.connect(roomId);
+    peer.on("reconnected", onChannel);
+    onChannel(channel);
     return peer;
   }
   peer.on("open", () =>

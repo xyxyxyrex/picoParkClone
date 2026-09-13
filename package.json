@@ -5,11 +5,13 @@
   "scripts": {
     "build": "node scripts/build.cjs",
     "dev": "npm run build && wrangler pages dev",
+    "dev:test": "npm run build && wrangler d1 migrations apply tiny-park-levels --local && wrangler pages dev --port 8788",
     "test": "node --test tests/*.test.cjs",
     "test:browser": "playwright test",
     "deploy": "npm run build && wrangler pages deploy dist --project-name tiny-park",
     "relay": "node server/index.js",
-    "relay:dev": "npm run build && STATIC_DIR=./dist node server/index.js"
+    "relay:dev": "npm run build && node scripts/relay-dev.cjs",
+    "relay:test": "node scripts/relay-test-server.cjs"
   },
   "repository": {
     "type": "git",

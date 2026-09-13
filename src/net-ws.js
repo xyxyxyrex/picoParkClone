@@ -179,12 +179,22 @@
     _dropped() {
       if (this.destroyed) return this._closeAll();
       this.disconnected = true;
+      // The old socket is no longer a usable channel. Mark it closed so the
+      // reconnect path creates a fresh channel and runs its handshake again.
+      this.guestChannel?._close();
+      this.channels.forEach((channel) => channel._close());
+      this.channels.clear();
       this.emit("disconnected");
       if (this.retry >= 5) return this._closeAll();
       clearTimeout(this.timer);
       this.timer = setTimeout(
         () => {
-          if (!this.destroyed) this._connect();
+          if (this.destroyed) return;
+          if (this.mode === "join") {
+            this.guestChannel = new ParkWsChannel(this, null);
+            this.emit("reconnected", this.guestChannel);
+          }
+          this._connect();
         },
         Math.min(30000, 1000 * 2 ** this.retry++),
       );

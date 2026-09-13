@@ -26,6 +26,10 @@ npm run relay:dev             # relay + the built site from ./dist
 PORT=8080 STATIC_DIR=./dist node server/index.js
 ```
 
+The `npm run relay:dev` helper sets these variables portably on Windows and Unix.
+For the meeting, deploy this Node process behind TLS on port 443 and set
+`window.PARK_RELAY_URL` in `game.html` to its `wss://.../ws` endpoint.
+
 `GET /healthz` returns `{ok, rooms}`. WebSocket endpoint is `/ws`.
 
 ## Pointing the game at it
@@ -134,7 +138,9 @@ Relay to client:
 
 `lossy: 1` marks disposable traffic (input, snapshots). The relay drops it rather
 than queueing when the destination socket is already behind, which is what the
-old unreliable WebRTC data channel gave us for free. `send()` never sets it.
+old unreliable WebRTC data channel gave us for free. `send()` never sets it. The
+relay accepts up to 2.5 MB per framed message so a valid 2 MB published campaign
+can cross the setup handshake.
 
 Payloads in `d` are opaque strings: the relay makes no gameplay decisions, and
 `src/host.js` stays the sole authority. The envelope is _addressed_ rather than
@@ -146,8 +152,11 @@ clients changing.
 
 - The host is still a single point of failure. If the host's browser closes or
   suspends, the room ends. Designate a machine that stays awake and plugged in.
-- A reconnecting guest is issued a **new** identity, so `src/host.js` treats it as
-  a new player. There is no session resumption yet.
+- A reconnecting guest is issued a **new** relay identity. During an active
+  match the client also sends its assigned player id; the host reserves that
+  body for 15 seconds and restores the same team and position when the browser
+  returns. A timeout still interrupts the match so the remaining players do
+  not wait forever for a missing teammate.
 - Room codes are four characters from a 32-symbol alphabet with `I`, `O`, `0` and
   `1` removed, because the code gets read aloud across a room.
 - `/api/levels` (campaign publishing) is a Cloudflare Pages function backed by D1

@@ -17,7 +17,10 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const LIMITS = {
   maxRooms: 200,
   maxGuestsPerRoom: 32,
-  maxMessageBytes: 512 * 1024,
+  // Published campaigns may contain all 30 player-count/round variants. Keep
+  // one bounded envelope large enough for the valid 2 MB editor payload plus
+  // JSON framing, while still rejecting unbounded input at the socket edge.
+  maxMessageBytes: 2_500_000,
   codeLength: 4,
 };
 

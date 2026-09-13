@@ -13,13 +13,24 @@ class Client {
     this.mode = "classic";
     this.maxTeamPlayers = 6;
     this.lastLobbyState = null;
+    this.resumeId = String(this.mainPlayer?.body?.id || "");
   }
   init(roomId) {
     this.peer = parkJoinRoom(roomId, (channel) => {
       this.mainConn = channel;
       this.mainConn.e.onData = (data) => this.processData(data);
-      this.mainConn.e.onConnection = () =>
-        this.mainConn.send(JSON.stringify({ setUsername: this.username }));
+      this.mainConn.e.onConnection = () => {
+        this.mainConn.send(
+          JSON.stringify({
+            setUsername: { name: this.username, playerId: this.resumeId },
+          }),
+        );
+        if (
+          (this.role === "team1" || this.role === "team2") &&
+          !this.lastLobbyState?.matchStarted
+        )
+          this.mainConn.send(JSON.stringify({ requestRole: this.role }));
+      };
       this.mainConn.e.onClose = () => {
         if (window.versusSession) versusSession.pause();
         this.game.matter.engine.timing.timeScale = 0;
@@ -45,6 +56,7 @@ class Client {
     }
     if (d.assignedPlayerId) {
       this.mainPlayer.body.id = d.assignedPlayerId;
+      this.resumeId = String(d.assignedPlayerId);
       this.mainConn.send(JSON.stringify({ playerReady: d.assignedPlayerId }));
     }
     if ("campaign" in d) {
@@ -98,6 +110,13 @@ class Client {
               : "Role change rejected."),
           !d.roleResult.ok,
         );
+      if (d.roleResult.reconnected) {
+        this.game.matter.engine.timing.timeScale = 1;
+        if (window.versusSession)
+          Object.values(versusSession.games).forEach(
+            (game) => (game.matter.engine.timing.timeScale = 1),
+          );
+      }
     }
     if (d.teamWorlds) {
       if (!window.versusSession) {

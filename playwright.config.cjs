@@ -5,14 +5,18 @@ module.exports = defineConfig({
   workers: 1,
   webServer: [
     {
+      command: "npm run dev:test",
+      port: 8788,
+      reuseExistingServer: true,
+    },
+    {
       command: "node scripts/signaling-test.cjs",
       port: 9000,
       reuseExistingServer: true,
     },
     /* Relay plus the built static site, mirroring the VPS layout. */
     {
-      command:
-        "npm run build && PORT=8789 STATIC_DIR=./dist node server/index.js",
+      command: "node scripts/relay-test-server.cjs",
       port: 8789,
       reuseExistingServer: true,
     },
