@@ -95,6 +95,24 @@ test("one cookie owns one player across tabs and reconnects with chat intact", a
     );
     await expect(secondTab.locator("#pingHud")).toContainText(/PING \d+ MS/);
 
+    /* A fresh page initially builds Level 1. The first authoritative snapshot
+     * must move it to the host's current level before applying coordinates. */
+    await host.evaluate(() => mainGame.levelHandler.setLevel("level2"));
+    await secondTab.reload();
+    await secondTab.waitForFunction(
+      () =>
+        window.clientConnection?.mainConn?.fullyConnected &&
+        window.mainGame?.running &&
+        mainGame.levelHandler.currentLevel.name === "level2",
+      {},
+      { timeout: 20000 },
+    );
+    await secondTab.waitForFunction(
+      () =>
+        clientConnection.mainPlayer.body.position.y <
+        mainGame.renderer.levelBounds.size.y + 250,
+    );
+
     await secondTab.evaluate(() =>
       clientConnection.peer.socket.close(4000, "reconnect-test"),
     );

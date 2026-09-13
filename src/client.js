@@ -171,7 +171,21 @@ class Client {
     }
     if (d.playerData) {
       if (!this.game.running) this.updateHostPlayers(d.playerData);
-      else if (d.levelName === this.game.levelHandler.currentLevel.name) {
+      else {
+        if (
+          d.levelName &&
+          d.levelName !== this.game.levelHandler.currentLevel.name
+        ) {
+          if (this.pendingLevelName === d.levelName) return;
+          try {
+            this.game.levelHandler.setLevel(d.levelName);
+            this.levelRevision = d.levelRevision || 0;
+            this.game.networkPlayback?.clear();
+          } catch {
+            return;
+          }
+        }
+        if (d.levelName !== this.game.levelHandler.currentLevel.name) return;
         if (d.levelRevision > (this.levelRevision || 0)) {
           this.levelRevision = d.levelRevision;
           this.game.networkPlayback?.clear();
@@ -188,7 +202,13 @@ class Client {
     }
     if (d.setColor) this.mainPlayer.color = d.setColor;
     if (d.startGame) startGame();
-    if (d.setLevel) this.game.renderer.levelTransistion(d.setLevel);
+    if (d.setLevel) {
+      const target = d.setLevel;
+      this.pendingLevelName = target;
+      this.game.renderer.levelTransistion(target).finally(() => {
+        if (this.pendingLevelName === target) this.pendingLevelName = null;
+      });
+    }
     if (
       d.restartLevel &&
       this.game.running &&
