@@ -3,7 +3,12 @@ class ParkPlayback {
   constructor(game) {
     this.game = game;
     this.frames = [];
-    this.delay = 100;
+    // Keep only a small render buffer. The previous 100 ms buffer made every
+    // input feel a quarter second late once network and camera smoothing were
+    // included. Jitter is measured from arrivals and adds a little headroom
+    // only when the connection needs it.
+    this.delay = 50;
+    this.jitter = 0;
     this.renderTime = -Infinity;
     this.lastArrival = 0;
   }
@@ -11,6 +16,9 @@ class ParkPlayback {
     this.frames = [];
     this.renderTime = -Infinity;
     this.clockOffset = undefined;
+    this.jitter = 0;
+    this.lastArrival = 0;
+    this.delay = 50;
   }
   push(state, time) {
     if (
@@ -19,6 +27,12 @@ class ParkPlayback {
     )
       return;
     const now = performance.now();
+    if (this.lastArrival) {
+      const interval = now - this.lastArrival;
+      const deviation = Math.abs(interval - 1000 / 30);
+      this.jitter = this.jitter * 0.9 + deviation * 0.1;
+      this.delay = Math.max(45, Math.min(90, 45 + this.jitter * 2));
+    }
     this.clockOffset = Math.min(this.clockOffset ?? Infinity, now - time);
     this.lastArrival = now;
     this.frames.push({ state, time });

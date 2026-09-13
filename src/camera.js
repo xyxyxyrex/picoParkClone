@@ -42,7 +42,9 @@
     if(!this.camera.initialized){
       this.camera.x=targetX;this.camera.y=targetY;this.camera.scale=targetScale;this.camera.initialized=true;
     }else{
-      const follow=.085,zoomFollow=.065;
+      // Camera smoothing is intentionally responsive so it does not add a
+      // second visible latency buffer on top of network interpolation.
+      const follow=.16,zoomFollow=.12;
       this.camera.x+=(targetX-this.camera.x)*follow;
       this.camera.y+=(targetY-this.camera.y)*follow;
       this.camera.scale+=(targetScale-this.camera.scale)*zoomFollow;

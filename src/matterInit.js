@@ -48,7 +48,10 @@ class MatterHandler {
       }
       if (!window.hostConnection)
         this.runner.frameRequestId = requestAnimationFrame(tick);
-      else if (now - (hostConnection.lastNetworkTick || 0) >= 50) {
+      // Physics still runs at 60 Hz, but clients receive a fresh authoritative
+      // state at 30 Hz. This keeps the interpolation buffer short without
+      // doubling the amount of physics work on the host.
+      else if (now - (hostConnection.lastNetworkTick || 0) >= 33) {
         hostConnection.lastNetworkTick = now;
         hostConnection.updateClients();
       }

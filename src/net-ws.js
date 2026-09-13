@@ -8,7 +8,9 @@
  */
 (function () {
   const DEFAULT_PATH = "/ws";
-  const LOSSY_BUFFER_LIMIT = 16384;
+  // Keep lossy traffic (inputs and snapshots) from sitting in a long socket
+  // queue. Dropping an old frame is preferable to rendering it late.
+  const LOSSY_BUFFER_LIMIT = 8192;
   const RELIABLE_BUFFER_LIMIT = 1000000;
 
   const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

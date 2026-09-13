@@ -14,6 +14,7 @@ class Client {
     this.maxTeamPlayers = 6;
     this.lastLobbyState = null;
     this.resumeId = String(this.mainPlayer?.body?.id || "");
+    this.inputTimer = null;
   }
   init(roomId) {
     this.peer = parkJoinRoom(roomId, (channel) => {
@@ -40,6 +41,13 @@ class Client {
             true,
           );
       };
+    });
+    // Key events remain immediate, while this pump keeps held keys flowing at
+    // a predictable cadence even when the browser does not emit repeats.
+    clearInterval(this.inputTimer);
+    this.inputTimer = setInterval(() => this.updateHost(), 50);
+    window.addEventListener("pagehide", () => clearInterval(this.inputTimer), {
+      once: true,
     });
   }
   processData(d, rd) {
