@@ -234,6 +234,7 @@ test("text areas render one character per cell and red buttons reset the team", 
     key.pos = v(710, 100);
     mainGame.buttons.find((button) => button.kind === "reset").onPress();
     return {
+      levelSpawn: { ...mainGame.levelHandler.currentLevel.spawn },
       scopedPositions,
       players: players.map((player) => ({ ...player.body.position })),
       key: {
@@ -245,14 +246,15 @@ test("text areas render one character per cell and red buttons reset the team", 
       text: mainGame.levelHandler.currentLevel.texts[0],
     };
   });
+  const resetPositions = [
+    { x: result.levelSpawn.x * 50, y: result.levelSpawn.y * 50 },
+    { x: result.levelSpawn.x * 50, y: (result.levelSpawn.y - 1) * 50 },
+  ];
   expect(result.scopedPositions).toEqual([
-    { x: 100, y: 500 },
+    resetPositions[0],
     { x: 750, y: 100 },
   ]);
-  expect(result.players).toEqual([
-    { x: 100, y: 500 },
-    { x: 100, y: 450 },
-  ]);
+  expect(result.players).toEqual(resetPositions);
   expect(result.key.pos).toEqual(result.key.spawn);
   expect(result.key.following).toBeUndefined();
   expect(result.reason).toBe("red-button");
