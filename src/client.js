@@ -15,10 +15,8 @@ class Client {
     this.lastLobbyState = null;
   }
   init(roomId) {
-    this.peer = createParkPeer();
-    this.peer.on("open", () => {
-      const dataConnection = this.peer.connect(roomId, { reliable: true });
-      this.mainConn = new ParkChannel(dataConnection);
+    this.peer = parkJoinRoom(roomId, (channel) => {
+      this.mainConn = channel;
       this.mainConn.e.onData = (data) => this.processData(data);
       this.mainConn.e.onConnection = () =>
         this.mainConn.send(JSON.stringify({ setUsername: this.username }));

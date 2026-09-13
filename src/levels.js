@@ -26,6 +26,26 @@ function stableNumericId(text){
   return Math.abs(h>>>0)+100000;
 }
 
+/*
+ * Choose the shield bearer. Sorting by body id alone handed the shield to the
+ * same person every single time, and nothing on screen told them they had it --
+ * so the escort stages read as "one random player is inexplicably invincible".
+ * `turn` rotates the pick across stages and retries; callers surface the name.
+ */
+function assignShieldBearer(players,rule,turn=0){
+  if(!rule||!players||!players.length) return null;
+  const ordered=players.slice().sort((a,b)=>a.body.id>b.body.id?1:a.body.id<b.body.id?-1:0);
+  const index=((Math.trunc(turn)%ordered.length)+ordered.length)%ordered.length;
+  const bearer=ordered[index];
+  bearer.hasShield[rule.direction||2]=true;
+  return bearer;
+}
+
+function shieldBearerOf(players){
+  return (players||[]).find(p=>!p.observer&&p.hasShield&&
+    [1,2,3,4].some(d=>p.hasShield[d]))||null;
+}
+
 function instantiateBlueprint(blueprint,nextLevel=null){
   const doorMap={};
   const doors=(blueprint.doors||[]).map((desc,index)=>{
@@ -41,6 +61,7 @@ function instantiateBlueprint(blueprint,nextLevel=null){
       finish:!!desc.finish
       ,open:!!desc.open
     });
+    door.latch=!!desc.latch;
     door.templateId=desc.id||`${blueprint.id||blueprint.name||'level'}-door-${index}`;
     door.id=stableNumericId(door.templateId);
     doorMap[door.templateId]=door;
@@ -53,7 +74,12 @@ function instantiateBlueprint(blueprint,nextLevel=null){
     const refresh=()=>{
       if(!gate) return;
       const needed=desc.mode==='all'?Math.max(1,desc.required||1):1;
-      gate.setOpen(gate._pressedSwitches.size>=needed);
+      const satisfied=gate._pressedSwitches.size>=needed;
+      // A latching gate stays open once the team has satisfied it, so the
+      // players who did the pressing walk through with everyone else instead of
+      // one of them staying behind to hold it.
+      if(gate.latch&&satisfied) gate._latched=true;
+      gate.setOpen(satisfied||!!gate._latched);
     };
     const button=new Button(v(desc.pos.x,desc.pos.y),{
       onPlayer:e=>{if(e.player&&(desc.kind==='grow'||desc.kind==='shrink'))e.player.setScale(Math.max(.5,Math.min(2,e.player.scale+(desc.kind==='grow'?.0075:-.0075))));},

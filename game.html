@@ -7,6 +7,15 @@
   <script src="./libs/matter.min.js"></script>
   <script src="./libs/matterjsRaycast.js"></script>
   <script src="./libs/peer.js"></script>
+  <script>
+    /*
+     * Relay endpoint. Leave null when the page and the relay share an origin
+     * (the VPS serves both) -- net-ws.js then derives wss://<host>/ws.
+     * Set it explicitly when the static site and the relay are on different
+     * hosts, e.g. "wss://park-relay.example.com/ws".
+     */
+    window.PARK_RELAY_URL = null;
+  </script>
   <script src="./libs/words.js"></script>
   <link rel="icon" href="./assets/imgs/favicon.png">
   <link rel="stylesheet" href="./ui.css">
@@ -104,6 +113,7 @@
     </main>
   </div>
 
+  <script src="./src/net-ws.js"></script>
   <script src="./src/multiplayer.js"></script>
   <script src="./src/buttons.js"></script>
   <script src="./src/door.js"></script>

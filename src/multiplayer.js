@@ -1,5 +1,29 @@
-/* One bidirectional WebRTC data channel per guest. The room host owns simulation. */
+/* One bidirectional channel per guest. The room host owns simulation. */
+
+/*
+ * Transport selection. Production defaults to the relay (src/net-ws.js) because
+ * WebRTC cannot be relied on from locked-down networks: without a TURN server of
+ * our own, guests behind symmetric NAT or blocked UDP simply never connect.
+ * PeerJS stays reachable for the existing real-WebRTC tests.
+ */
+function parkTransport() {
+  if (window.PARK_TRANSPORT) return window.PARK_TRANSPORT;
+  return window.PARK_PEER_OPTIONS ? "peerjs" : "ws";
+}
+
 function createParkPeer(id) {
+  if (parkTransport() === "ws") {
+    const relay = new ParkWsPeer();
+    relay.on("error", (error) => {
+      const message =
+        error.type === "peer-unavailable"
+          ? "Room not found. Check the code and try again."
+          : error.message ||
+            "Room connection unavailable. Please retry shortly.";
+      if (window.showLobbyMessage) showLobbyMessage(message, true);
+    });
+    return relay;
+  }
   const peer = new Peer(id || undefined, {
     debug: 1,
     ...(window.PARK_PEER_OPTIONS || {}),
@@ -34,6 +58,38 @@ function createParkPeer(id) {
       peer.destroy();
     },
     { once: true },
+  );
+  return peer;
+}
+
+/*
+ * Both transports reach the same place through these two helpers: a room code on
+ * the host side, and one ParkChannel-shaped object per guest on both sides.
+ * PeerJS must register with signaling before it can dial; the relay dials first
+ * and is told its identity in the reply, so the ordering differs.
+ */
+function parkHostRoom(preferredId, onOpen, onChannel) {
+  const peer = createParkPeer(preferredId);
+  peer.on("open", onOpen);
+  peer.on("connection", (connection) =>
+    onChannel(
+      connection instanceof ParkWsChannel
+        ? connection
+        : new ParkChannel(connection, true),
+    ),
+  );
+  if (peer instanceof ParkWsPeer) peer.host();
+  return peer;
+}
+
+function parkJoinRoom(roomId, onChannel) {
+  const peer = createParkPeer();
+  if (peer instanceof ParkWsPeer) {
+    onChannel(peer.connect(roomId));
+    return peer;
+  }
+  peer.on("open", () =>
+    onChannel(new ParkChannel(peer.connect(roomId, { reliable: true }))),
   );
   return peer;
 }

@@ -17,15 +17,19 @@ class Host {
     this.matchStarted = false;
   }
   init() {
-    this.peer = createParkPeer(this.id);
-    this.peer.on("open", (id) => {
-      this.roomJoinOnline = true;
-      this.opening = false;
-      this.joinConn = { selfId: id };
-      setRoomCode(id);
-      this.broadcastLobby();
-    });
-    this.peer.on("connection", (connection) => this.openConnection(connection));
+    /* The relay assigns the room code, so this.id is provisional until open. */
+    this.peer = parkHostRoom(
+      this.id,
+      (id) => {
+        this.id = id;
+        this.roomJoinOnline = true;
+        this.opening = false;
+        this.joinConn = { selfId: id };
+        setRoomCode(id);
+        this.broadcastLobby();
+      },
+      (channel) => this.openConnection(channel),
+    );
   }
   broadcast(data) {
     this.connections.forEach((conn) => {
@@ -54,12 +58,11 @@ class Host {
     }
     this.broadcastLobby();
   }
-  openConnection(dataConnection) {
+  openConnection(connection) {
     if (this.connections.length >= 32) {
-      dataConnection.close();
+      connection.terminate();
       return;
     }
-    const connection = new ParkChannel(dataConnection, true);
     connection.role = this.mode === "versus" ? "observer" : "player";
     connection.clientUsername = "Player";
     connection.e.onData = (d) => {
@@ -303,12 +306,9 @@ class Host {
       if (players.length) players[i % players.length].hasShield[s] = true;
     });
     if (meta.bindPlayers && players.length > 1) this.game.bindPlayers(players);
-    if (meta.shieldRule && players.length) {
-      const bearer = players
-        .slice()
-        .sort((a, b) => String(a.body.id).localeCompare(String(b.body.id)))[0];
-      bearer.hasShield[meta.shieldRule.direction || 4] = true;
-    }
+    /* Same rotation as the versus path in level.js, so both agree. */
+    if (meta.shieldRule && players.length)
+      assignShieldBearer(players, meta.shieldRule, stage);
   }
   beginMatch() {
     this.matchStarted = true;

@@ -220,6 +220,7 @@
     for (const d of stage.doors)
       add(d.gate ? "gate" : "door", d.pos.x - 1, d.pos.y - 2, 2, 2, {
         id: d.id || `o${objects.length}`,
+        ...(d.latch ? { latch: true } : {}),
       });
     for (const k of stage.keys) add("key", k.pos.x, k.pos.y);
     for (const b of stage.blocks)
@@ -288,6 +289,8 @@
           acceptsKey: o.type === "door",
           open:
             o.type === "door" && !level.objects.some((x) => x.type === "key"),
+          /* Stays open once its switches have all been satisfied together. */
+          latch: !!o.latch,
         });
       if (o.type === "key") data.keys.push({ pos });
       if (o.type === "laser") data.lasers.push({ pos, angle: o.rotation });
