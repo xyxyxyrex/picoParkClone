@@ -240,6 +240,17 @@ class Renderer {
 
         for (let i = 0; i < this.game.buttons.length; i++) {
             const but = this.game.buttons[i];
+            if (but.kind==="reset") {
+                const x=(but.pos.x-0.5)*cellsize.x,y=(but.pos.y-0.5)*cellsize.y;
+                this.ctx.fillStyle="#5d211d";
+                this.ctx.fillRect(x+5,y+33,cellsize.x-10,10);
+                this.ctx.fillStyle="#dc3027";
+                this.ctx.fillRect(x+9,y+(but.trigger.playerInside?29:21),cellsize.x-18,but.trigger.playerInside?9:17);
+                this.ctx.strokeStyle="#30110f";
+                this.ctx.lineWidth=2;
+                this.ctx.strokeRect(x+9,y+(but.trigger.playerInside?29:21),cellsize.x-18,but.trigger.playerInside?9:17);
+                continue;
+            }
             //console.log(but.trigger)
             if (but.trigger.playerInside) {
                 this.ctx.drawImage(levelAtlas, 
@@ -378,6 +389,7 @@ class Renderer {
 
         this.renderParticles()
         this.renderLasers()
+        this.renderTextAreas(levelHandler)
 
         if(this.debug) {
             var bodies = Matter.Composite.allBodies(this.game.matter.engine.world)
@@ -393,6 +405,23 @@ class Renderer {
         }
 
 
+    }
+    renderTextAreas(levelHandler) {
+        const texts=levelHandler.currentLevel.texts||[],cellsize=levelHandler.currentLevel.cellsize;
+        this.ctx.save();
+        this.ctx.textAlign="center";
+        this.ctx.textBaseline="middle";
+        this.ctx.font="32px squareforced, Arial, sans-serif";
+        this.ctx.lineJoin="round";
+        this.ctx.lineWidth=4;
+        this.ctx.strokeStyle="rgba(255,255,255,.82)";
+        this.ctx.fillStyle="#3d3028";
+        texts.forEach(area=>Array.from(area.text||"").forEach((letter,index)=>{
+            const x=(area.pos.x+index)*cellsize.x,y=area.pos.y*cellsize.y;
+            this.ctx.strokeText(letter,x,y);
+            this.ctx.fillText(letter,x,y);
+        }));
+        this.ctx.restore();
     }
     renderParticles() {
         let parts = this.game.particleHandler.particles

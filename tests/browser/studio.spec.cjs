@@ -166,3 +166,96 @@ test("Level Boundary is a resizable editor object and survives the JSON blueprin
     size: { x: 4, y: 2 },
   });
 });
+test("text areas render one character per cell and red buttons reset the team", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/lvl");
+
+  await page.locator('[data-type="text"]').click();
+  await expect(page.locator("#inspectorTitle")).toHaveText("Text area");
+  await expect(page.locator("#textFields")).toBeVisible();
+  await page.locator("#objectText").fill("HELLO");
+  await page.locator("#objectText").press("Tab");
+  await clickCell(page, 3, 2);
+
+  await page.locator('[data-type="reset"]').click();
+  await expect(page.locator("#inspectorTitle")).toHaveText("Red button");
+  await clickCell(page, 5, 10);
+
+  const authored = await page.evaluate(() => {
+    const level = parkStudio.snapshot().variants[2][0];
+    const text = level.objects.find((object) => object.type === "text");
+    const blueprint = ParkData.blueprint(level);
+    return {
+      text,
+      runtimeText: blueprint.texts[0],
+      resetKind: blueprint.buttons.find((button) => button.kind === "reset")
+        ?.kind,
+    };
+  });
+  expect(authored.text).toMatchObject({ text: "HELLO", w: 5, h: 1 });
+  expect(authored.runtimeText).toEqual({
+    pos: { x: 3, y: 2 },
+    text: "HELLO",
+  });
+  expect(authored.resetKind).toBe("reset");
+
+  await page.locator("#play").click();
+  await expect
+    .poll(() =>
+      page.frames().some((candidate) => /\/test$/.test(candidate.url())),
+    )
+    .toBe(true);
+  const frame = page
+    .frames()
+    .find((candidate) => /\/test$/.test(candidate.url()));
+  await expect(
+    page.frameLocator("#testFrame").getByRole("button", { name: "Player 2" }),
+  ).toBeVisible();
+  await expect.poll(() => frame.evaluate(() => mainGame.running)).toBe(true);
+  const result = await frame.evaluate(() => {
+    const players = mainGame.players.filter((player) => !player.observer);
+    const key = mainGame.entities.find((entity) => entity instanceof Key);
+    Matter.Body.setPosition(players[0].body, v(700, 100));
+    Matter.Body.setPosition(players[1].body, v(750, 100));
+    key.followingPlayer = players[0];
+    key.pos = v(710, 100);
+    players[0].team = "team1";
+    players[1].team = "team2";
+    mainGame.resetAllPlayers("red-button", "team1");
+    const scopedPositions = players.map((player) => ({
+      ...player.body.position,
+    }));
+    Matter.Body.setPosition(players[0].body, v(700, 100));
+    players.forEach((player) => (player.team = null));
+    key.followingPlayer = players[0];
+    key.pos = v(710, 100);
+    mainGame.buttons.find((button) => button.kind === "reset").onPress();
+    return {
+      scopedPositions,
+      players: players.map((player) => ({ ...player.body.position })),
+      key: {
+        pos: { ...key.pos },
+        spawn: { ...key.ogPos },
+        following: key.followingPlayer,
+      },
+      reason: mainGame.lastResetReason,
+      text: mainGame.levelHandler.currentLevel.texts[0],
+    };
+  });
+  expect(result.scopedPositions).toEqual([
+    { x: 100, y: 500 },
+    { x: 750, y: 100 },
+  ]);
+  expect(result.players).toEqual([
+    { x: 100, y: 500 },
+    { x: 100, y: 450 },
+  ]);
+  expect(result.key.pos).toEqual(result.key.spawn);
+  expect(result.key.following).toBeUndefined();
+  expect(result.reason).toBe("red-button");
+  expect(result.text).toEqual({ pos: { x: 3, y: 2 }, text: "HELLO" });
+  expect(errors).toEqual([]);
+});

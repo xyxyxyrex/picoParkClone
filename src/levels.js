@@ -81,12 +81,16 @@ function instantiateBlueprint(blueprint,nextLevel=null){
       if(gate.latch&&satisfied) gate._latched=true;
       gate.setOpen(satisfied||!!gate._latched);
     };
-    const button=new Button(v(desc.pos.x,desc.pos.y),{
+    let button;
+    button=new Button(v(desc.pos.x,desc.pos.y),{
       onPlayer:e=>{if(e.player&&(desc.kind==='grow'||desc.kind==='shrink'))e.player.setScale(Math.max(.5,Math.min(2,e.player.scale+(desc.kind==='grow'?.0075:-.0075))));},
-      onPress:()=>{if(gate){gate._pressedSwitches.add(desc.id);refresh();}},
+      onPress:()=>{
+        if(desc.kind==='reset'){button.game&&button.game.resetAllPlayers('red-button',button.team);return;}
+        if(gate){gate._pressedSwitches.add(desc.id);refresh();}
+      },
       onUnpress:()=>{if(gate){gate._pressedSwitches.delete(desc.id);refresh();}}
     });
-    button.team=desc.team||null;button.stage=desc.stage||null;button.templateId=desc.id||null;
+    button.kind=desc.kind||'switch';button.team=desc.team||null;button.stage=desc.stage||null;button.templateId=desc.id||null;
     return button;
   });
 
@@ -107,6 +111,7 @@ function instantiateBlueprint(blueprint,nextLevel=null){
     lasers:(blueprint.lasers||[]).map(l=>({pos:v(l.pos.x,l.pos.y),angle:l.angle,enabled:l.enabled!==false,team:l.team||null,stage:l.stage||null})),
     jumppads:(blueprint.jumppads||[]).map(j=>v(j.x,j.y)),
     boundaries:(blueprint.boundaries||[]).map(b=>({pos:v(b.pos.x,b.pos.y),size:v(b.size.x,b.size.y)})),
+    texts:(blueprint.texts||[]).map(t=>({pos:v(t.pos.x,t.pos.y),text:t.text})),
     doors
   };
 }

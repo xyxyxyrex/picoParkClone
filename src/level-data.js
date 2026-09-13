@@ -13,6 +13,8 @@
     "gate",
     "switch",
     "boundary",
+    "text",
+    "reset",
   ];
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function template(round = 1, players = 1) {
@@ -121,10 +123,19 @@
       if (
         ["door", "gate"].includes(o.type)
           ? o.w !== 2 || o.h !== 2
-          : !["terrain", "block", "boundary"].includes(o.type) &&
+          : !["terrain", "block", "boundary", "text"].includes(o.type) &&
             (o.w !== 1 || o.h !== 1)
       )
         throw Error("Invalid object size.");
+      if (
+        o.type === "text" &&
+        (typeof o.text !== "string" ||
+          !o.text.length ||
+          [...o.text].length !== o.w ||
+          o.h !== 1 ||
+          /[\r\n\u0000-\u001f\u007f]/.test(o.text))
+      )
+        throw Error("Text areas need one visible character per block.");
     }
     for (const o of level.objects)
       if (
@@ -231,9 +242,25 @@
       add("laser", l.pos.x, l.pos.y, 1, 1, { rotation: l.angle % 4 });
     for (const j of stage.jumppads) add("jumppad", j.x, j.y - 2);
     for (const b of stage.buttons)
-      add("switch", b.pos.x, b.pos.y, 1, 1, {
-        gateId: b.gateId,
-        mode: b.mode || "any",
+      add(
+        b.kind === "reset"
+          ? "reset"
+          : b.kind === "grow"
+            ? "grow"
+            : b.kind === "shrink"
+              ? "shrink"
+              : "switch",
+        b.pos.x,
+        b.pos.y,
+        1,
+        1,
+        {
+          ...(b.gateId ? { gateId: b.gateId, mode: b.mode || "any" } : {}),
+        },
+      );
+    for (const text of stage.texts || [])
+      add("text", text.pos.x, text.pos.y, [...text.text].length, 1, {
+        text: text.text,
       });
     return {
       name: stage.name,
@@ -262,6 +289,7 @@
       lasers: [],
       jumppads: [],
       boundaries: [],
+      texts: [],
       bindPlayers: level.linked,
       shields: level.shields,
       spawn: level.objects.find((o) => o.type === "spawn") || { x: 2, y: 2 },
@@ -279,6 +307,7 @@
         });
       if (o.type === "boundary")
         data.boundaries.push({ pos, size: { x: o.w, y: o.h } });
+      if (o.type === "text") data.texts.push({ pos, text: o.text });
       if (["door", "gate"].includes(o.type))
         data.doors.push({
           id: o.id,
@@ -295,7 +324,7 @@
       if (o.type === "key") data.keys.push({ pos });
       if (o.type === "laser") data.lasers.push({ pos, angle: o.rotation });
       if (o.type === "jumppad") data.jumppads.push({ x: o.x, y: o.y + 2 });
-      if (["grow", "shrink", "switch"].includes(o.type))
+      if (["grow", "shrink", "switch", "reset"].includes(o.type))
         data.buttons.push({
           id: o.id,
           pos,

@@ -39,6 +39,54 @@ test("Level Boundary objects validate as resizable editor-only reset zones", () 
     ),
   );
 });
+test("text areas and red reset buttons survive the editor blueprint round trip", () => {
+  const level = D.campaign().variants[2][0];
+  level.objects.push(
+    {
+      id: "custom-text",
+      type: "text",
+      x: 3,
+      y: 3,
+      w: 4,
+      h: 1,
+      rotation: 0,
+      text: "GO!★",
+    },
+    {
+      id: "custom-reset",
+      type: "reset",
+      x: 5,
+      y: 10,
+      w: 1,
+      h: 1,
+      rotation: 0,
+    },
+  );
+
+  D.validateLevel(level);
+  const blueprint = D.blueprint(level);
+  assert.deepEqual(blueprint.texts.at(-1), {
+    pos: { x: 3, y: 3 },
+    text: "GO!★",
+  });
+  assert.equal(blueprint.buttons.at(-1).kind, "reset");
+
+  const rebuilt = D.fromBlueprint(blueprint);
+  assert.deepEqual(
+    rebuilt.objects.find((o) => o.type === "text"),
+    {
+      id: rebuilt.objects.find((o) => o.type === "text").id,
+      type: "text",
+      x: 3,
+      y: 3,
+      w: 4,
+      h: 1,
+      rotation: 0,
+      text: "GO!★",
+    },
+  );
+  assert.equal(rebuilt.objects.find((o) => o.type === "reset").type, "reset");
+});
 test("rejects invalid data, dimensions, duplicate IDs and dangling switches", () => {
   for (const change of [
     (d) => d.variants[1].pop(),
@@ -48,6 +96,17 @@ test("rejects invalid data, dimensions, duplicate IDs and dangling switches", ()
     (d) =>
       (d.variants[1][3].objects.find((o) => o.type === "switch").gateId =
         "missing"),
+    (d) =>
+      d.variants[1][0].objects.push({
+        id: "bad-text",
+        type: "text",
+        x: 2,
+        y: 2,
+        w: 2,
+        h: 1,
+        rotation: 0,
+        text: "A",
+      }),
   ]) {
     const data = D.campaign();
     change(data);

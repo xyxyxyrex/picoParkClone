@@ -50,7 +50,9 @@ class Game {
         } else player.updatePlayerParts();
       }
       if (removedBoundPlayer)
-        self.bindPlayers(self.players.filter((p) => !p.observer && !p.unloading));
+        self.bindPlayers(
+          self.players.filter((p) => !p.observer && !p.unloading),
+        );
     };
     this.currentColor = randInt(0, 7);
     this.lastDelta = 0;
@@ -210,7 +212,10 @@ class Game {
       return;
     }
     for (let i = 0; i < pla.length - 1; i++)
-      this.constraintHandler.addConstraint({ bodyA: pla[i], bodyB: pla[i + 1] });
+      this.constraintHandler.addConstraint({
+        bodyA: pla[i],
+        bodyB: pla[i + 1],
+      });
     this.playersBinded = true;
   }
 
@@ -233,5 +238,46 @@ class Game {
     });
     this.lastTetherResetReason = reason;
     this._resettingTether = false;
+  }
+  resetAllPlayers(reason = "red-button", team = null) {
+    if (this._resettingAllPlayers) return;
+    this._resettingAllPlayers = true;
+    try {
+      const active = this.players
+        .filter(
+          (player) =>
+            !player.observer &&
+            !player.unloading &&
+            (!team || player.team === team),
+        )
+        .slice()
+        .sort((a, b) => (a.tetherIndex ?? 0) - (b.tetherIndex ?? 0));
+      active.forEach((player, index) => {
+        player.constraintVel = v();
+        player.restart(index);
+        const current = this.levelHandler.currentLevel;
+        const point = current.campaign && player.campaignRespawnPoint?.();
+        if (point)
+          Matter.Body.setPosition(
+            player.body,
+            v(point.x * 50, (point.y - index) * 50),
+          );
+        Matter.Body.setVelocity(player.body, v(0, 0));
+      });
+      const resetPlayers = new Set(active);
+      this.constraints
+        .filter(
+          (link) =>
+            resetPlayers.has(link.bodyA) || resetPlayers.has(link.bodyB),
+        )
+        .forEach((link) => {
+          link.distance = 0;
+          link.force = 0;
+          link.taut = false;
+        });
+      this.lastResetReason = reason;
+    } finally {
+      this._resettingAllPlayers = false;
+    }
   }
 }

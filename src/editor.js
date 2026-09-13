@@ -29,6 +29,14 @@
       "Level boundary",
       "Editor-only reset zone. It is invisible and non-solid during gameplay.",
     ],
+    text: [
+      "Text area",
+      "Show a message in the level. Each character occupies one grid cell.",
+    ],
+    reset: [
+      "Red button",
+      "Pressing it respawns every teammate and returns carried keys.",
+    ],
   };
   const atlas = new Image(),
     players = new Image(),
@@ -155,6 +163,8 @@
       "boundary",
     ].includes(object.type);
     $("switchFields").hidden = object.type !== "switch";
+    $("textFields").hidden = object.type !== "text";
+    $("objectText").value = object.text || "";
     $("gateSelect").replaceChildren();
     l.objects
       .filter((o) => o.type === "gate")
@@ -238,7 +248,30 @@
       c.restore();
     } else if (type === "key")
       sprite(c, atlas, 115, 514, 159, 215, x + 0.15, y + 0.03, 0.7, 0.94);
-    else if (["grow", "shrink", "switch"].includes(type)) {
+    else if (type === "text") {
+      c.save();
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.font = ".62px Arial";
+      Array.from(o.text || "A").forEach((letter, index) => {
+        c.fillStyle = "rgba(255,255,255,.55)";
+        c.fillRect(x + index + 0.05, y + 0.05, 0.9, 0.9);
+        c.strokeStyle = "#ddd4ca";
+        c.lineWidth = 0.035;
+        c.strokeRect(x + index + 0.05, y + 0.05, 0.9, 0.9);
+        c.fillStyle = "#3d3028";
+        c.fillText(letter, x + index + 0.5, y + 0.52);
+      });
+      c.restore();
+    } else if (type === "reset") {
+      c.fillStyle = "#5d211d";
+      c.fillRect(x + 0.08, y + 0.66, 0.84, 0.2);
+      c.fillStyle = "#dc3027";
+      c.fillRect(x + 0.18, y + 0.34, 0.64, 0.34);
+      c.strokeStyle = "#30110f";
+      c.lineWidth = 0.04;
+      c.strokeRect(x + 0.18, y + 0.34, 0.64, 0.34);
+    } else if (["grow", "shrink", "switch"].includes(type)) {
       sprite(c, atlas, 389, 535, 161, 161, x, y, 1, 1);
       c.fillStyle = "#604730";
       c.font = ".4px Arial";
@@ -659,7 +692,8 @@
         selected = null;
       }
       if (name === "rotate") {
-        if (["block", "terrain", "boundary"].includes(o.type)) [o.w, o.h] = [o.h, o.w];
+        if (["block", "terrain", "boundary"].includes(o.type))
+          [o.w, o.h] = [o.h, o.w];
         o.rotation = (o.rotation + 1) % 4;
       }
     });
@@ -711,10 +745,22 @@
       c.setAttribute("aria-hidden", "true");
       const pc = c.getContext("2d");
       pc.imageSmoothingEnabled = false;
-      const size = ["door", "gate"].includes(type) ? 2 : 1;
+      const size = ["door", "gate"].includes(type)
+        ? 2
+        : type === "text"
+          ? 3
+          : 1;
       pc.translate(12, 8);
       pc.scale(70 / size, 70 / size);
-      drawObject(pc, { type, x: 0, y: 0, w: size, h: size, rotation: 0 });
+      drawObject(pc, {
+        type,
+        x: 0,
+        y: 0,
+        w: size,
+        h: type === "text" ? 1 : size,
+        rotation: 0,
+        ...(type === "text" ? { text: "TXT" } : {}),
+      });
       b.append(c, document.createTextNode(name));
       b.onclick = () => {
         if (
@@ -727,8 +773,9 @@
         brush = {
           type,
           w: size,
-          h: size,
+          h: type === "text" ? 1 : size,
           rotation: 0,
+          ...(type === "text" ? { text: "TEXT", w: 4 } : {}),
           ...(type === "switch"
             ? {
                 gateId: level().objects.find((o) => o.type === "gate").id,
@@ -742,6 +789,7 @@
         hideMenu();
         sync();
         draw();
+        if (type === "text") setTimeout(() => $("objectText").select());
       };
       $("palette").append(b);
     }
@@ -791,6 +839,28 @@
     };
   $("linked").onchange = (e) =>
     mutate(() => (level().linked = e.target.checked));
+  $("objectText").onchange = (e) => {
+    const text = Array.from(e.target.value).slice(0, level().width).join("");
+    if (!text.length) {
+      toast("Text areas need at least one character.");
+      sync();
+      return;
+    }
+    if (selected)
+      mutate(() => {
+        const object = level().objects.find((o) => o.id === selected);
+        object.text = text;
+        object.w = Array.from(text).length;
+        object.h = 1;
+      });
+    else {
+      brush.text = text;
+      brush.w = Array.from(text).length;
+      brush.h = 1;
+      sync();
+      draw();
+    }
+  };
   for (const [id, prop] of [
     ["gateSelect", "gateId"],
     ["switchMode", "mode"],

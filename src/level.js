@@ -49,7 +49,7 @@ class LevelHandler {
     }
     loadLevel(levelData,name) {
         const cellsize=v(50,50),levelMap=levelData.map;
-        this.currentLevel={data:levelMap,cellsize,name,campaign:!!levelData.campaign,spawn:levelData.spawn||null,spawnByTeam:levelData.spawnByTeam||null,stageMeta:levelData.stageMeta||null,teamCounts:levelData.teamCounts||null,boundaries:levelData.boundaries||[]};
+        this.currentLevel={data:levelMap,cellsize,name,campaign:!!levelData.campaign,spawn:levelData.spawn||null,spawnByTeam:levelData.spawnByTeam||null,stageMeta:levelData.stageMeta||null,teamCounts:levelData.teamCounts||null,boundaries:levelData.boundaries||[],texts:levelData.texts||[]};
         this.game.buttons=levelData.buttons||[];
         const width=levelMap[0].length*cellsize.x,height=levelMap.length*cellsize.y;
         this.game.renderer.levelBounds={pos:v(-25,-25),size:v(width,height)};
@@ -90,6 +90,7 @@ class LevelHandler {
             (levelData.keys||[]).forEach(k=>{const key=new Key(this.game,v(k.pos.x*cellsize.x,k.pos.y*cellsize.y),{team:k.team||null,stage:k.stage||null});this.game.entities.push(key);});
         }
         (levelData.buttons||[]).forEach(but=>{
+            but.game=this.game;
             but.trigger=this.game.triggerHandler.addTrigger(v(but.pos.x*cellsize.x,(but.pos.y+.25)*cellsize.y),v(cellsize.x,cellsize.y*.5));
             but.trigger.onEnter=but.onPress;but.trigger.onLeave=but.onUnpress;but.trigger.onIn=but.onIn;
         });
