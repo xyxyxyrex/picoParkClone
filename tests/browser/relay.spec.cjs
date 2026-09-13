@@ -134,12 +134,7 @@ test("a full 2v2 versus match runs over the WebSocket relay", async ({
     await host.evaluate(() => {
       const game = versusSession.games.team1;
       const door = game.doors.find((candidate) => candidate.checkpoint);
-      const key = game.entities[0];
-      key.pos = {
-        x: door.trigger.rect.position.x,
-        y: door.trigger.rect.position.y - 45,
-      };
-      key.vel = { x: 0, y: 0 };
+      door.setOpen(true);
       const first = hostConnection.getTeamPlayers("team1")[0];
       Matter.Body.setPosition(first.body, { ...door.trigger.rect.position });
       Matter.Body.setVelocity(first.body, { x: 0, y: 0 });

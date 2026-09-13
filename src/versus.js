@@ -89,9 +89,10 @@ class VersusSession {
     const bearer = shieldBearerOf(game.players);
     const hint = bearer
       ? `${bearer.username || "A teammate"} carries the shield - stay behind them`
-      : "First teammate through the unlocked exit advances the team";
+      : "Every teammate must enter the unlocked exit";
     const text = `TEAM ${game.options.team === "team1" ? 1 : 2}  /  LEVEL ${game.options.stage} OF 5  |  ${hint}`;
-    if (game.worldLabel.textContent !== text) game.worldLabel.textContent = text;
+    if (game.worldLabel.textContent !== text)
+      game.worldLabel.textContent = text;
   }
   load(team, stage) {
     const game = this.games[team];
@@ -128,7 +129,7 @@ class VersusSession {
       ]),
     );
   }
-  receive(worlds,serverTime) {
+  receive(worlds, serverTime) {
     for (const [team, data] of Object.entries(worlds)) {
       const game = this.games[team];
       if (!game || data.revision < game.revision) continue;
@@ -160,8 +161,10 @@ class VersusSession {
       game.revision = data.revision;
       this.label(game);
       game.networkPlayback ||= new ParkPlayback(game);
-      game.networkPlayback.push({players:data.players,sync:data.sync},serverTime);
-
+      game.networkPlayback.push(
+        { players: data.players, sync: data.sync },
+        serverTime,
+      );
     }
   }
   pause() {
