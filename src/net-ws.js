@@ -11,10 +11,25 @@
   const LOSSY_BUFFER_LIMIT = 16384;
   const RELIABLE_BUFFER_LIMIT = 1000000;
 
-  function relayUrl() {
-    if (window.PARK_RELAY_URL) return window.PARK_RELAY_URL;
+  const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  function randomRoomCode() {
+    const values = new Uint32Array(4);
+    crypto.getRandomValues(values);
+    return [...values]
+      .map((value) => ROOM_ALPHABET[value % ROOM_ALPHABET.length])
+      .join("");
+  }
+
+  function relayUrl(peer) {
+    const configured = window.PARK_RELAY_URL || null;
     const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-    return `${scheme}//${location.host}${DEFAULT_PATH}`;
+    const url = new URL(
+      configured || `${scheme}//${location.host}${DEFAULT_PATH}`,
+    );
+    if (peer.joinCode) url.searchParams.set("room", peer.joinCode);
+    if (peer.mode === "host") url.searchParams.set("host", "1");
+    return url.toString();
   }
 
   class ParkWsChannel {
@@ -101,7 +116,7 @@
     _connect() {
       let socket;
       try {
-        socket = new WebSocket(relayUrl());
+        socket = new WebSocket(relayUrl(this));
       } catch {
         this.emit("error", { type: "server-error" });
         return;
@@ -127,7 +142,20 @@
         }
         this._receive(message);
       };
-      socket.onclose = () => this._dropped();
+      socket.onclose = () => {
+        /* A Pages/DO HTTP rejection happens before WebSocket open, so there is
+         * no relay error frame to decode. Surface that as the same room error
+         * the Node relay sends after upgrading the socket. */
+        if (this.mode === "join" && !this.id && this.retry === 0) {
+          this.destroyed = true;
+          this._closeAll();
+          return this.emit("error", {
+            type: "peer-unavailable",
+            message: "Room not found. Check the code and try again.",
+          });
+        }
+        this._dropped();
+      };
       socket.onerror = () => {};
     }
     _receive(message) {
@@ -199,8 +227,11 @@
         Math.min(30000, 1000 * 2 ** this.retry++),
       );
     }
-    host() {
+    host(preferredId) {
       this.mode = "host";
+      this.joinCode = /^[A-Z2-9]{4}$/.test(String(preferredId || ""))
+        ? String(preferredId).toUpperCase()
+        : randomRoomCode();
       this._connect();
       return this;
     }

@@ -5,7 +5,7 @@ const { test, expect } = require("@playwright/test");
  * participant to a server on a normal port, no ICE, no NAT traversal. These
  * exercise it against the real server from server/index.js.
  */
-const RELAY_ORIGIN = "http://localhost:8789";
+const RELAY_ORIGIN = process.env.PARK_RELAY_ORIGIN || "http://localhost:8789";
 
 test("a full 2v2 versus match runs over the WebSocket relay", async ({
   browser,

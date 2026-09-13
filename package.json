@@ -11,7 +11,9 @@
     "deploy": "npm run build && wrangler pages deploy dist --project-name tiny-park",
     "relay": "node server/index.js",
     "relay:dev": "npm run build && node scripts/relay-dev.cjs",
-    "relay:test": "node scripts/relay-test-server.cjs"
+    "relay:test": "node scripts/relay-test-server.cjs",
+    "realtime:dev": "wrangler dev --config relay-worker/wrangler.jsonc --port 8790",
+    "realtime:deploy": "wrangler deploy --config relay-worker/wrangler.jsonc"
   },
   "repository": {
     "type": "git",

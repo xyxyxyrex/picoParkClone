@@ -78,7 +78,7 @@ function parkHostRoom(preferredId, onOpen, onChannel) {
         : new ParkChannel(connection, true),
     ),
   );
-  if (peer instanceof ParkWsPeer) peer.host();
+  if (peer instanceof ParkWsPeer) peer.host(preferredId);
   return peer;
 }
 

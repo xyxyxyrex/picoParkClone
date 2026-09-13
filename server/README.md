@@ -27,16 +27,18 @@ PORT=8080 STATIC_DIR=./dist node server/index.js
 ```
 
 The `npm run relay:dev` helper sets these variables portably on Windows and Unix.
-For the meeting, deploy this Node process behind TLS on port 443 and set
-`window.PARK_RELAY_URL` in `game.html` to its `wss://.../ws` endpoint.
+For the meeting, deploy the Cloudflare Worker in `relay-worker/` with
+`npm run realtime:deploy`; Pages routes `/ws` to its room Durable Objects
+through `functions/ws.js`. The Node relay remains available as a laptop or VPS
+fallback.
 
 `GET /healthz` returns `{ok, rooms}`. WebSocket endpoint is `/ws`.
 
 ## Pointing the game at it
 
-`game.html` sets `window.PARK_RELAY_URL`. Leave it `null` when the same host
+`game.html` sets `window.PARK_RELAY_URL`. Leave it `null` when the Pages Function
 serves both the page and the relay — the client derives `wss://<host>/ws`. Set it
-explicitly when they differ:
+explicitly only when using the Node fallback on another host:
 
 ```js
 window.PARK_RELAY_URL = "wss://park-relay.example.com/ws";
