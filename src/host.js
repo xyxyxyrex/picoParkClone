@@ -433,6 +433,8 @@ class Host {
       }
       if (d.requestRole) this.requestRole(connection, d.requestRole);
       if (d.readyForSnapshots) connection.readyForSnapshots = true;
+      if (d.campaignReady) connection.campaignReady = true;
+      if (d.matchReady) connection.matchReady = true;
       if (d.playerReady && connection.player?.body.id === d.playerReady)
         connection.playerReady = d.playerReady;
       if (d.ping) connection.sendLatest(JSON.stringify({ pong: d.ping }));
@@ -690,7 +692,12 @@ class Host {
     if (this.mode === "versus") {
       this.applyCampaignStage("team1", 1);
       this.applyCampaignStage("team2", 1);
-      this.broadcast(JSON.stringify({ campaignState: this.getLobbyState() }));
+      this.broadcast(
+        JSON.stringify({
+          startGame: true,
+          campaignState: this.getLobbyState(),
+        }),
+      );
     }
     this.broadcastLobby();
   }
@@ -728,10 +735,35 @@ class Host {
     );
   }
   updateClients() {
+    if (this.matchWinner) return;
+    if (!this.matchStarted) {
+      const now = Date.now();
+      this.connections.forEach((connection) => {
+        if (
+          connection.identityReady &&
+          !connection.campaignReady &&
+          now - (connection.lastCampaignNoticeAt || 0) > 1000
+        ) {
+          connection.lastCampaignNoticeAt = now;
+          this.sendTo(connection, { campaign: window.parkCampaign || null });
+        }
+      });
+    }
     if (window.versusSession) {
       this.connections.forEach((c) => {
         if (c.player && performance.now() - (c.lastInputAt || 0) > 500)
           c.player.keys = {};
+        if (
+          this.matchStarted &&
+          !c.matchReady &&
+          Date.now() - (c.lastStartNoticeAt || 0) > 1000
+        ) {
+          c.lastStartNoticeAt = Date.now();
+          this.sendTo(c, {
+            startGame: true,
+            campaignState: this.getLobbyState(),
+          });
+        }
       });
       const worlds = versusSession.snapshot();
       this.connections

@@ -255,11 +255,11 @@
         if(counts.team1===0||counts.team2===0||counts.team1!==counts.team2) return showLobbyMessage(`Teams must be equal and non-zero. Team 1: ${counts.team1}/6, Team 2: ${counts.team2}/6.`,true);
         if(counts.team1>6||counts.team2>6) return showLobbyMessage('Maximum team size is 6.',true);
       }
-      if(window.hostConnection) { const ready=hostConnection.connections.filter(c=>c.role!=='observer'); if(hostConnection.reconnectReservations.size) return showLobbyMessage('Waiting for disconnected players to reconnect.',true); if(ready.some(c=>!c.player)) return showLobbyMessage('Waiting for player connections to be ready.',true); }
+      if(window.hostConnection) { const ready=hostConnection.connections.filter(c=>c.role!=='observer'); if(hostConnection.reconnectReservations.size) return showLobbyMessage('Waiting for disconnected players to reconnect.',true); if(ready.some(c=>!c.player)) return showLobbyMessage('Waiting for player connections to be ready.',true); if(ready.some(c=>!c.campaignReady)) return showLobbyMessage('Waiting for level data to reach every player.',true); }
       startGame();
       if(window.hostConnection){
-        hostConnection.broadcast(JSON.stringify({campaign:window.parkCampaign||null,startGame:true}));
-        setTimeout(()=>hostConnection.beginMatch(),80);
+        if(hostConnection.mode==='versus') setTimeout(()=>hostConnection.beginMatch(),80);
+        else hostConnection.broadcast(JSON.stringify({campaign:window.parkCampaign||null,startGame:true}));
       }
     });
 

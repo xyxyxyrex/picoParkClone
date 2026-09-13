@@ -28,7 +28,7 @@
       overlay.innerHTML='<div class="pixel-card" style="text-align:center;max-width:620px"><div class="pixel-kicker">Campaign Complete</div><h1 id="matchWinnerText" style="font-size:46px;margin:12px 0"></h1><p class="pixel-status">First team to clear all five stages wins.</p><a class="pixel-btn green" href="./index.html">Back to Lobby</a></div>';
       document.body.appendChild(overlay);
     }
-    document.getElementById('matchWinnerText').textContent=`${label} WINS!`;overlay.style.display='grid';
+    document.getElementById('matchWinnerText').textContent=`${label} HAS WON THE GAME!`;overlay.style.display='grid';
   };
 
   window.renderLobbyState=function(state){

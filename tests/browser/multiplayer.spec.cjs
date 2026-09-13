@@ -72,6 +72,27 @@ test("real WebRTC room, equal teams, host authority and five-round winner", asyn
     await host.waitForFunction(
       () => hostConnection.connections.filter((c) => c.player).length === 3,
     );
+    await host.waitForFunction(() =>
+      hostConnection.connections
+        .filter((connection) => connection.role !== "observer")
+        .every((connection) => connection.campaignReady),
+    );
+    // A started lobby state must recover a guest even if its one-shot start
+    // message is lost under heavy room traffic.
+    await host.evaluate(() => {
+      const target = hostConnection.connections.find(
+        (connection) => connection.role === "team2",
+      );
+      const send = target.send.bind(target);
+      target.send = (data) => {
+        const payload = JSON.parse(data);
+        if (payload.startGame && !target.droppedStartForTest) {
+          target.droppedStartForTest = true;
+          return;
+        }
+        send(data);
+      };
+    });
     await host.locator("#startGameButton").click();
     await client.waitForFunction(
       () => window.versusSession?.games.team2?.running,
@@ -230,11 +251,15 @@ test("real WebRTC room, equal teams, host authority and five-round winner", asyn
         await host.evaluate(() => versusSession.games.team2.options.stage),
       ).toBe(1);
     }
-    await expect(host.locator("#matchWinnerText")).toHaveText("TEAM 1 WINS!");
-    await expect(client.locator("#matchWinnerText")).toHaveText("TEAM 1 WINS!");
+    await expect(host.locator("#matchWinnerText")).toHaveText(
+      "TEAM 1 HAS WON THE GAME!",
+    );
+    await expect(client.locator("#matchWinnerText")).toHaveText(
+      "TEAM 1 HAS WON THE GAME!",
+    );
     expect(await host.evaluate(() => hostConnection.progress.team2)).toBe(1);
     await expect(observer.locator("#matchWinnerText")).toHaveText(
-      "TEAM 1 WINS!",
+      "TEAM 1 HAS WON THE GAME!",
     );
     expect(errors).toEqual([]);
   } finally {

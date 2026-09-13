@@ -7,7 +7,7 @@ class VersusSession {
       : clientConnection.role;
     this.counts = window.hostConnection
       ? hostConnection.getCounts()
-      : clientConnection.lastLobbyState.counts;
+      : clientConnection.lastLobbyState?.counts || { team1: 1, team2: 1 };
     const root = document.createElement("div");
     root.id = "teamWorlds";
     root.className = this.role === "observer" ? "observing" : "playing";

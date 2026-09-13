@@ -13,12 +13,14 @@ class Client {
     this.resumeId = String(this.mainPlayer?.body?.id || "");
     this.sessionId = parkSessionId();
     this.inputTimer = null;
+    this.matchReadySent = false;
   }
   init(roomId) {
     this.peer = parkJoinRoom(roomId, (channel) => {
       this.mainConn = channel;
       this.mainConn.e.onData = (data) => this.processData(data);
       this.mainConn.e.onConnection = () => {
+        this.matchReadySent = false;
         this.mainConn.send(
           JSON.stringify({
             setUsername: {
@@ -106,6 +108,9 @@ class Client {
         window.parkCampaign = d.campaign
           ? ParkData.validate(d.campaign, true)
           : null;
+        this.mainConn.send(
+          JSON.stringify({ campaignReady: true, readyForSnapshots: true }),
+        );
       } catch {
         return;
       }
@@ -134,10 +139,12 @@ class Client {
     if (d.lobbyState) {
       this.lastLobbyState = d.lobbyState;
       if (window.renderLobbyState) renderLobbyState(d.lobbyState);
+      this.ensureMatchStarted();
     }
     if (d.campaignState) {
       this.lastLobbyState = d.campaignState;
       if (window.renderLobbyState) renderLobbyState(d.campaignState);
+      this.ensureMatchStarted();
     }
     if (d.roleResult) {
       this.role = d.roleResult.role || this.role;
@@ -159,6 +166,7 @@ class Client {
             (game) => (game.matter.engine.timing.timeScale = 1),
           );
       }
+      this.ensureMatchStarted();
     }
     if (d.teamWorlds) {
       if (!window.versusSession) {
@@ -166,8 +174,9 @@ class Client {
         this.mode = "versus";
         this.lastLobbyState = d.worldState;
         if (this.role === "player") this.role = "observer";
-        startGame();
+        this.ensureMatchStarted();
       }
+      if (!window.versusSession) return;
       versusSession.receive(d.teamWorlds, d.serverTime);
     }
     if (d.playerData) {
@@ -202,7 +211,10 @@ class Client {
       }
     }
     if (d.setColor) this.mainPlayer.color = d.setColor;
-    if (d.startGame) startGame();
+    if (d.startGame) {
+      this.matchStartRequested = true;
+      this.ensureMatchStarted();
+    }
     if (d.setLevel) {
       const target = d.setLevel;
       this.pendingLevelName = target;
@@ -220,19 +232,34 @@ class Client {
       showLobbyMessage(
         `${d.campaignAdvance.team === "team1" ? "Team 1" : "Team 2"} reached Level ${d.campaignAdvance.stage}.`,
       );
-    if (d.roomConfig && "campaign" in d)
-      this.mainConn.send(JSON.stringify({ readyForSnapshots: true }));
     if (d.matchWinner) {
       if (window.versusSession) versusSession.pause();
       const label = d.matchWinner === "team1" ? "TEAM 1" : "TEAM 2";
       if (window.showMatchWinner) showMatchWinner(label);
       else if (window.showLobbyMessage)
-        showLobbyMessage(`${label} WINS THE 5-LEVEL RACE!`);
+        showLobbyMessage(`${label} HAS WON THE GAME!`);
     }
   }
   requestRole(role) {
     if (this.mainConn && this.mainConn.fullyConnected)
       this.mainConn.send(JSON.stringify({ requestRole: role }));
+  }
+  ensureMatchStarted() {
+    const started =
+      this.matchStartRequested || this.lastLobbyState?.matchStarted;
+    if (!started || !window.startGame) return false;
+    try {
+      startGame();
+    } catch {
+      return false;
+    }
+    const ready =
+      this.mode === "versus" ? !!window.versusSession : !!this.game.running;
+    if (ready && !this.matchReadySent && this.mainConn?.fullyConnected) {
+      this.matchReadySent = true;
+      this.mainConn.send(JSON.stringify({ matchReady: true }));
+    }
+    return ready;
   }
   sendChat(text) {
     if (this.mainConn?.fullyConnected)
